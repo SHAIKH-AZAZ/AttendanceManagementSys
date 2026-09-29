@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { dbService } from '@/lib/db-service';
 
-export async function POST(request: Request) {
+export async function POST() {
   try {
+    const userId = (await cookies()).get('attendease_user_id')?.value;
+    const user = userId ? await dbService.getUserById(userId) : undefined;
+
     const response = NextResponse.json({
       message: 'Logged out successfully',
       success: true,
@@ -13,14 +17,16 @@ export async function POST(request: Request) {
       maxAge: 0,
     });
 
-    dbService.addSystemAudit({
-      userId: 'system',
-      userName: 'User Session',
-      action: 'USER_LOGOUT',
-      entityName: 'Session',
-      entityId: 'current',
-      details: 'User logged out of AttendEASE365 portal.',
-    });
+    if (user) {
+      dbService.addSystemAudit({
+        userId: user.id,
+        userName: user.fullName,
+        action: 'USER_LOGOUT',
+        entityName: 'User',
+        entityId: user.id,
+        details: `${user.fullName} signed out.`,
+      });
+    }
 
     return response;
   } catch (error) {

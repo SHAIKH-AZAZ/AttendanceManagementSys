@@ -1,857 +1,743 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
-import {
-  LectureSession,
+import { useEffect, useMemo, useState } from 'react';
+import { Copy, FileText, Lock, Plus, Save, Search } from 'lucide-react';
+import type {
+  AcademicMeta,
   AttendanceRecord,
   AttendanceStatus,
-  StudentComplianceStats,
+  ComplianceResponse,
+  LectureSession,
+  User,
 } from '@/types';
 import {
-  CheckCircle2,
-  XCircle,
-  Clock,
-  ShieldAlert,
-  Copy,
-  Lock,
-  Search,
-  Filter,
-  Save,
-  AlertTriangle,
-  FileCheck,
-  Check,
-  Calendar,
-  Users,
-  Award,
-  Sparkles,
-  ExternalLink,
-} from 'lucide-react';
+  api,
+  attendanceRate,
+  formatDate,
+  formatDateTime,
+  formatPercent,
+  plural,
+  sectionLabel,
+  STATUSES,
+  THRESHOLD,
+  todayISO,
+  useApi,
+  type Tone,
+} from '@/lib/client';
+import {
+  AttendanceValue,
+  Badge,
+  Button,
+  ConfirmDialog,
+  EmptyState,
+  Field,
+  FormDialog,
+  LoadState,
+  Notice,
+  PageHeader,
+  Panel,
+  Person,
+  Stats,
+  Table,
+  cn,
+  control,
+  td,
+  th,
+  useToast,
+} from '@/components/ui';
 
-interface FacultyPortalProps {
-  activeTab: string;
-  onOpenUniversityReport?: (courseId: string, sectionId: string) => void;
+// Selected key colors: green counts as attended, amber is late, red absent, blue an authorized absence.
+const CHECKED: Record<Tone, string> = {
+  success: 'peer-checked:border-green-700 peer-checked:bg-green-700 peer-checked:text-white',
+  danger: 'peer-checked:border-red-700 peer-checked:bg-red-700 peer-checked:text-white',
+  warning: 'peer-checked:border-amber-700 peer-checked:bg-amber-700 peer-checked:text-white',
+  info: 'peer-checked:border-sky-700 peer-checked:bg-sky-700 peer-checked:text-white',
+  neutral: 'peer-checked:border-slate-700 peer-checked:bg-slate-700 peer-checked:text-white',
+  brand: 'peer-checked:border-brand-700 peer-checked:bg-brand-700 peer-checked:text-white',
+};
+
+const KEY: Record<Tone, string> = {
+  success: 'bg-green-700',
+  danger: 'bg-red-700',
+  warning: 'bg-amber-700',
+  info: 'bg-sky-700',
+  neutral: 'bg-slate-700',
+  brand: 'bg-brand-700',
+};
+
+const TITLES: Record<string, string> = {
+  attendance: 'Mark attendance',
+  sessions: 'Session history',
+  compliance: 'Compliance',
+};
+
+/** True when both lists hold the same mark and remark for every student. */
+function sameMarks(a: AttendanceRecord[], b: AttendanceRecord[]) {
+  const saved = new Map(b.map((r) => [r.studentId, r]));
+  return (
+    a.length === b.length &&
+    a.every((r) => {
+      const s = saved.get(r.studentId);
+      return s?.status === r.status && (s.remarks ?? '') === (r.remarks ?? '');
+    })
+  );
 }
 
-export const FacultyPortal: React.FC<FacultyPortalProps> = ({
-  activeTab,
-  onOpenUniversityReport,
-}) => {
-  const [sessions, setSessions] = useState<LectureSession[]>([]);
-  const [selectedSessionId, setSelectedSessionId] = useState<string>('session-ds-today');
-  const [currentSession, setCurrentSession] = useState<LectureSession | null>(null);
-  const [records, setRecords] = useState<AttendanceRecord[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('ALL');
-  const [isLockModalOpen, setIsLockModalOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
-  const [complianceStats, setComplianceStats] = useState<StudentComplianceStats[]>([]);
+interface FacultyPortalProps {
+  user: User;
+  meta: AcademicMeta;
+  view: string;
+  onNavigate: (view: string) => void;
+  onOpenReport: (courseId: string, sectionId: string) => void;
+}
 
-  // Fetch sessions
-  const fetchSessions = async () => {
-    try {
-      const res = await fetch('/api/sessions?courseId=course-ds&sectionId=sec-ds-a');
-      const data = await res.json();
-      if (data.sessions) {
-        setSessions(data.sessions);
-        const active =
-          data.sessions.find((s: LectureSession) => s.id === selectedSessionId) ||
-          data.sessions[data.sessions.length - 1];
-        if (active) {
-          setCurrentSession(active);
-          setRecords(JSON.parse(JSON.stringify(active.records)));
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching sessions:', err);
-    }
-  };
+export function FacultyPortal({ user, meta, view, onNavigate, onOpenReport }: FacultyPortalProps) {
+  const notify = useToast();
 
-  // Fetch compliance
-  const fetchCompliance = async () => {
-    try {
-      const res = await fetch('/api/compliance/defaulters?courseId=course-ds&sectionId=sec-ds-a');
-      const data = await res.json();
-      if (data.stats) {
-        setComplianceStats(data.stats);
-      }
-    } catch (err) {
-      console.error('Error fetching compliance:', err);
-    }
-  };
+  const sections = useMemo(
+    () =>
+      meta.sections.filter(
+        (s) => s.facultyId === user.id || user.facultyProfile?.assignedCourses.some((a) => a.sectionId === s.id)
+      ),
+    [meta.sections, user]
+  );
+  const [sectionId, setSectionId] = useState(sections[0]?.id);
+  const section = sections.find((s) => s.id === sectionId) ?? sections[0];
+  const course = meta.courses.find((c) => c.id === section?.courseId);
+  const query = section ? `courseId=${section.courseId}&sectionId=${section.id}` : null;
 
+  const sessionsQ = useApi<{ sessions: LectureSession[] }>(query && `/api/sessions?${query}`);
+  const complianceQ = useApi<ComplianceResponse>(query && `/api/compliance/defaulters?${query}`);
+  const sessions = useMemo(
+    () => [...(sessionsQ.data?.sessions ?? [])].sort((a, b) => b.sessionNumber - a.sessionNumber),
+    [sessionsQ.data]
+  );
+
+  // Default to the open draft; otherwise the most recent session.
+  const [pickedId, setPickedId] = useState<string | null>(null);
+  const session = sessions.find((s) => s.id === pickedId) ?? sessions.find((s) => !s.isLocked) ?? sessions[0];
+
+  // Unsaved marks live here until saved; the server copy stays in `session.records`.
+  const [draft, setDraft] = useState<{ sessionId: string; records: AttendanceRecord[] } | null>(null);
+  const records = session ? (draft?.sessionId === session.id ? draft.records : session.records) : [];
+  const dirty = !!session && !session.isLocked && !sameMarks(records, session.records);
+
+  // Ask before a reload or tab close throws away unsaved marks.
   useEffect(() => {
-    fetchSessions();
-    fetchCompliance();
-  }, [selectedSessionId]);
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
 
-  const handleSelectSession = (s: LectureSession) => {
-    setSelectedSessionId(s.id);
-    setCurrentSession(s);
-    setRecords(JSON.parse(JSON.stringify(s.records)));
-    setNotification(null);
+  const [confirm, setConfirm] = useState<{ kind: 'submit' } | { kind: 'discard'; then: () => void } | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [busy, setBusy] = useState<'save' | 'submit' | 'copy' | null>(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<AttendanceStatus | 'ALL'>('ALL');
+
+  /** Runs `action` now, or after the user agrees to drop unsaved marks. */
+  const guard = (action: () => void) => {
+    if (dirty) setConfirm({ kind: 'discard', then: action });
+    else action();
   };
 
-  const summary = useMemo(() => {
-    return {
-      total: records.length,
-      present: records.filter((r) => r.status === 'PRESENT').length,
-      absent: records.filter((r) => r.status === 'ABSENT').length,
-      late: records.filter((r) => r.status === 'LATE').length,
-      excused: records.filter((r) => r.status === 'EXCUSED').length,
-      medical: records.filter((r) => r.status === 'MEDICAL_LEAVE').length,
-      onDuty: records.filter((r) => r.status === 'ON_DUTY').length,
-    };
-  }, [records]);
+  const update = (change: (record: AttendanceRecord) => AttendanceRecord) => {
+    if (!session || session.isLocked) return;
+    setDraft({ sessionId: session.id, records: records.map(change) });
+  };
+  const mark = (studentId: string | null, status: AttendanceStatus) =>
+    update((r) => (studentId === null || r.studentId === studentId ? { ...r, status, markedAt: new Date().toISOString() } : r));
 
-  // Bulk Operations
-  const handleMarkAll = (status: AttendanceStatus) => {
-    if (currentSession?.isLocked) return;
-    setRecords((prev) =>
-      prev.map((r) => ({
-        ...r,
-        status,
-        markedAt: new Date().toISOString(),
-      }))
-    );
-    setNotification({
-      type: 'info',
-      message: `Marked all ${records.length} students as ${status}.`,
+  async function run(kind: 'save' | 'submit' | 'copy', task: () => Promise<string>) {
+    setBusy(kind);
+    try {
+      notify(await task());
+    } catch (err) {
+      notify((err as Error).message, 'error');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const saveDraft = (target: LectureSession) =>
+    run('save', async () => {
+      await api.post(`/api/sessions/${target.id}/draft`, { records });
+      sessionsQ.reload();
+      return 'Draft saved.';
     });
-  };
 
-  // Copy Previous Session
-  const handleCopyPrevious = async () => {
-    if (currentSession?.isLocked) return;
-    setIsLoading(true);
-    try {
-      const res = await fetch(`/api/sessions/${selectedSessionId}/copy-previous`, {
-        method: 'POST',
-      });
-      const data = await res.json();
-      if (res.ok && data.records) {
-        setRecords(data.records);
-        setNotification({
-          type: 'success',
-          message: 'Copied student attendance from the preceding lecture session.',
-        });
-      } else {
-        setNotification({
-          type: 'error',
-          message: data.error || 'Failed to copy previous session.',
-        });
-      }
-    } catch {
-      setNotification({
-        type: 'error',
-        message: 'Network error copying previous session.',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleStatusChange = (studentId: string, status: AttendanceStatus) => {
-    if (currentSession?.isLocked) return;
-    setRecords((prev) =>
-      prev.map((r) =>
-        r.studentId === studentId
-          ? { ...r, status, markedAt: new Date().toISOString() }
-          : r
-      )
-    );
-  };
-
-  const handleRemarksChange = (studentId: string, remarks: string) => {
-    if (currentSession?.isLocked) return;
-    setRecords((prev) =>
-      prev.map((r) => (r.studentId === studentId ? { ...r, remarks } : r))
-    );
-  };
-
-  const handleSaveDraft = async () => {
-    if (currentSession?.isLocked) return;
-    setIsLoading(true);
-    try {
-      const res = await fetch(`/api/sessions/${selectedSessionId}/draft`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ records }),
-      });
-      if (res.ok) {
-        setNotification({
-          type: 'success',
-          message: 'Draft attendance saved successfully.',
-        });
-        fetchSessions();
-      }
-    } catch {
-      setNotification({ type: 'error', message: 'Failed to save draft.' });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleConfirmSubmitAndLock = async () => {
-    setIsLoading(true);
-    try {
-      const res = await fetch(`/api/sessions/${selectedSessionId}/submit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          facultyId: 'user-faculty-1',
-          records,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setIsLockModalOpen(false);
-        setNotification({
-          type: 'success',
-          message: 'Attendance submitted & permanently locked. Status is now immutable.',
-        });
-        await fetchSessions();
-        await fetchCompliance();
-      } else {
-        setNotification({
-          type: 'error',
-          message: data.error || 'Failed to lock session.',
-        });
-      }
-    } catch {
-      setNotification({ type: 'error', message: 'Error submitting attendance.' });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const filteredRecords = useMemo(() => {
-    return records.filter((r) => {
-      const matchesSearch =
-        r.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.enrollmentNumber.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesFilter = statusFilter === 'ALL' || r.status === statusFilter;
-      return matchesSearch && matchesFilter;
+  const submit = (target: LectureSession) =>
+    run('submit', async () => {
+      await api.post(`/api/sessions/${target.id}/submit`, { facultyId: user.id, records });
+      sessionsQ.reload();
+      complianceQ.reload();
+      return `Session ${target.sessionNumber} submitted and locked.`;
     });
-  }, [records, searchQuery, statusFilter]);
 
-  const defaultersCount = complianceStats.filter((s) => s.isDefaulter).length;
+  const copyPrevious = (target: LectureSession) =>
+    run('copy', async () => {
+      const data = await api.post<{ records: AttendanceRecord[] }>(`/api/sessions/${target.id}/copy-previous`);
+      setDraft({ sessionId: target.id, records: data.records });
+      sessionsQ.reload();
+      return 'Marks copied from the most recent locked session.';
+    });
 
-  return (
-    <div className="space-y-6">
-      {/* Top Banner & Quick Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs relative overflow-hidden">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold mb-1">
-            <span>Course & Section</span>
-            <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold border border-indigo-100">
-              Trimester 2
-            </span>
-          </div>
-          <div className="text-lg font-bold text-slate-900">Data Structures (CS-301)</div>
-          <div className="text-xs text-slate-500 mt-1 flex items-center gap-1.5 font-medium">
-            <Users className="w-3.5 h-3.5 text-indigo-600" />
-            Section A • 15 Enrolled Students
-          </div>
-        </div>
+  const nextNumber = (sessions[0]?.sessionNumber ?? 0) + 1;
 
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold mb-1">
-            <span>Today&apos;s Lecture</span>
-            <span
-              className={`text-[10px] px-2 py-0.5 rounded font-bold border ${
-                currentSession?.isLocked
-                  ? 'bg-slate-100 text-slate-700 border-slate-200'
-                  : 'bg-amber-50 text-amber-800 border-amber-200'
-              }`}
-            >
-              {currentSession?.isLocked ? 'Locked' : 'Draft Pending'}
-            </span>
-          </div>
-          <div className="text-lg font-bold text-slate-900">Lecture #25</div>
-          <div className="text-xs text-slate-500 mt-1 flex items-center gap-1.5 truncate font-medium">
-            <Calendar className="w-3.5 h-3.5 text-amber-600" />
-            AVL Rotations & Trees
-          </div>
-        </div>
+  async function createSession(data: FormData) {
+    if (!section) return;
+    const topic = String(data.get('topic') ?? '').trim();
+    const { session: created } = await api.post<{ session: LectureSession }>('/api/sessions', {
+      campusId: section.campusId,
+      departmentId: section.departmentId,
+      trimesterId: section.trimesterId,
+      courseId: section.courseId,
+      sectionId: section.id,
+      facultyId: user.id,
+      lectureDate: data.get('date'),
+      sessionNumber: nextNumber,
+      sessionTitle: topic || `Lecture ${nextNumber}`,
+    });
+    setPickedId(created.id);
+    sessionsQ.reload();
+    notify(`Session ${nextNumber} created.`);
+  }
 
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold mb-1">
-            <span>Total Completed Sessions</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900">24 Sessions</div>
-          <div className="text-xs text-emerald-600 mt-1 flex items-center gap-1 font-semibold">
-            <Check className="w-3 h-3" /> 100% on-time submission rate
-          </div>
-        </div>
+  if (!section || !course) {
+    return (
+      <>
+        <PageHeader title={TITLES[view]} />
+        <Panel>
+          <EmptyState
+            title="No course sections are assigned to you"
+            description="Ask the academic office to assign you to a section before recording attendance."
+          />
+        </Panel>
+      </>
+    );
+  }
 
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold mb-1">
-            <span>Compliance Alert</span>
-            <AlertTriangle className="w-4 h-4 text-rose-600" />
-          </div>
-          <div className="text-2xl font-bold text-rose-600">{defaultersCount} Students</div>
-          <div className="text-xs text-rose-700/80 mt-1 font-medium">
-            Below 75% required attendance
-          </div>
-        </div>
-      </div>
+  const context = `${course.code} ${course.title}, ${section.name}. ${plural(section.studentCount, 'student')} enrolled.`;
 
-      {/* Notification Banner */}
-      {notification && (
-        <div
-          className={`p-3.5 rounded-xl border text-xs flex items-center justify-between transition-all ${
-            notification.type === 'success'
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-              : notification.type === 'error'
-              ? 'bg-rose-50 border-rose-200 text-rose-800'
-              : 'bg-indigo-50 border-indigo-200 text-indigo-800'
-          }`}
-        >
-          <div className="flex items-center gap-2 font-medium">
-            <Sparkles className="w-4 h-4 shrink-0" />
-            <span>{notification.message}</span>
-          </div>
-          <button
-            onClick={() => setNotification(null)}
-            className="text-slate-400 hover:text-slate-700 text-xs font-bold px-1"
-          >
-            ×
-          </button>
-        </div>
-      )}
+  const sectionPicker = sections.length > 1 && (
+    <label className="flex items-center gap-2 text-sm">
+      <span className="text-slate-600">Section</span>
+      <select
+        value={section.id}
+        onChange={(e) => {
+          const id = e.target.value;
+          guard(() => {
+            setSectionId(id);
+            setPickedId(null);
+          });
+        }}
+        className={cn(control, 'w-auto max-w-72')}
+      >
+        {sections.map((s) => (
+          <option key={s.id} value={s.id}>
+            {`${meta.courses.find((c) => c.id === s.courseId)?.code ?? s.courseId}, ${s.name}`}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
 
-      {/* Main Classroom Attendance Marking Interface */}
-      {activeTab === 'marking' && (
-        <div className="bg-white border border-slate-200/90 rounded-2xl shadow-sm overflow-hidden">
-          {/* Header Bar with Session Selector and Lock Status */}
-          <div className="p-4 sm:p-5 border-b border-slate-200 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-slate-50/70">
-            <div>
-              <div className="flex items-center gap-2.5">
-                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <FileCheck className="w-5 h-5 text-indigo-600" />
-                  {currentSession?.sessionTitle || 'Class Attendance Marking'}
-                </h2>
-                {currentSession?.isLocked ? (
-                  <span className="inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full font-bold bg-slate-100 text-slate-700 border border-slate-300">
-                    <Lock className="w-3 h-3 text-slate-600" /> Locked & Immutable
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 animate-pulse">
-                    ● Marking Active (Draft)
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-500 mt-1 font-medium">
-                Date: {currentSession?.lectureDate} • Section: Computer-A • Faculty: Prof. Rajesh Sharma
-              </p>
-            </div>
+  const reportButton = (
+    <Button variant="secondary" onClick={() => onOpenReport(section.courseId, section.id)}>
+      <FileText aria-hidden /> Attendance report
+    </Button>
+  );
 
-            {/* Quick Session Switcher Dropdown */}
-            <div className="flex items-center gap-2 w-full lg:w-auto">
-              <span className="text-xs text-slate-600 font-semibold whitespace-nowrap hidden sm:inline">
-                Select Lecture:
-              </span>
-              <select
-                value={selectedSessionId}
-                onChange={(e) => {
-                  const s = sessions.find((item) => item.id === e.target.value);
-                  if (s) handleSelectSession(s);
-                }}
-                className="bg-white border border-slate-300 text-xs text-slate-800 rounded-xl px-3 py-2 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full sm:w-auto shadow-2xs"
-              >
+  if (view === 'sessions') {
+    return (
+      <>
+        <PageHeader title="Session history" description={context} actions={<>{sectionPicker}{reportButton}</>} />
+        <Panel>
+          {!sessionsQ.data ? (
+            <LoadState error={sessionsQ.error} onRetry={sessionsQ.reload} />
+          ) : sessions.length === 0 ? (
+            <EmptyState title="No sessions yet" description="Sessions you create for this section are listed here." />
+          ) : (
+            <Table>
+              <thead>
+                <tr>
+                  <th className={th}>No.</th>
+                  <th className={th}>Date</th>
+                  <th className={th}>Topic</th>
+                  <th className={cn(th, 'text-right')}>Attended</th>
+                  <th className={cn(th, 'text-right')}>Rate</th>
+                  <th className={th}>Status</th>
+                  <th className={th}>
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
                 {sessions.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    #{s.sessionNumber} - {s.lectureDate} {s.isLocked ? '(🔒 Locked)' : '(Active Draft)'}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Action Toolbar & Bulk Controls */}
-          {!currentSession?.isLocked && (
-            <div className="p-4 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  id="btn-mark-all-present"
-                  onClick={() => handleMarkAll('PRESENT')}
-                  className="px-3.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs active:scale-95"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  Mark All Present
-                </button>
-                <button
-                  id="btn-mark-all-absent"
-                  onClick={() => handleMarkAll('ABSENT')}
-                  className="px-3.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs active:scale-95"
-                >
-                  <XCircle className="w-3.5 h-3.5 text-rose-600" />
-                  Mark All Absent
-                </button>
-                <button
-                  id="btn-copy-prev-session"
-                  onClick={handleCopyPrevious}
-                  disabled={isLoading}
-                  className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs active:scale-95"
-                >
-                  <Copy className="w-3.5 h-3.5 text-slate-600" />
-                  Copy Prev Session
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2 ml-auto">
-                <button
-                  onClick={handleSaveDraft}
-                  disabled={isLoading}
-                  className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs"
-                >
-                  <Save className="w-3.5 h-3.5 text-slate-600" />
-                  Save Draft
-                </button>
-                <button
-                  id="btn-submit-lock-session"
-                  onClick={() => setIsLockModalOpen(true)}
-                  disabled={isLoading}
-                  className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm text-xs font-bold flex items-center gap-2 transition-all active:scale-95"
-                >
-                  <Lock className="w-3.5 h-3.5 text-white" />
-                  Submit & Lock Attendance
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Real-time Dynamic Counter Bar */}
-          <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 grid grid-cols-3 sm:grid-cols-7 gap-2 text-center text-xs">
-            <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
-              <div className="text-[10px] text-slate-500 font-semibold">Total</div>
-              <div className="text-base font-bold text-slate-900">{summary.total}</div>
-            </div>
-            <div className="bg-emerald-50/60 p-2.5 rounded-xl border border-emerald-200 shadow-2xs">
-              <div className="text-[10px] text-emerald-800 font-semibold">Present (P)</div>
-              <div className="text-base font-bold text-emerald-700">{summary.present}</div>
-            </div>
-            <div className="bg-rose-50/60 p-2.5 rounded-xl border border-rose-200 shadow-2xs">
-              <div className="text-[10px] text-rose-800 font-semibold">Absent (A)</div>
-              <div className="text-base font-bold text-rose-700">{summary.absent}</div>
-            </div>
-            <div className="bg-amber-50/60 p-2.5 rounded-xl border border-amber-200 shadow-2xs">
-              <div className="text-[10px] text-amber-800 font-semibold">Late (L)</div>
-              <div className="text-base font-bold text-amber-700">{summary.late}</div>
-            </div>
-            <div className="bg-blue-50/60 p-2.5 rounded-xl border border-blue-200 shadow-2xs">
-              <div className="text-[10px] text-blue-800 font-semibold">Excused (E)</div>
-              <div className="text-base font-bold text-blue-700">{summary.excused}</div>
-            </div>
-            <div className="bg-purple-50/60 p-2.5 rounded-xl border border-purple-200 shadow-2xs">
-              <div className="text-[10px] text-purple-800 font-semibold">Medical (M)</div>
-              <div className="text-base font-bold text-purple-700">{summary.medical}</div>
-            </div>
-            <div className="bg-sky-50/60 p-2.5 rounded-xl border border-sky-200 shadow-2xs">
-              <div className="text-[10px] text-sky-800 font-semibold">On Duty (O)</div>
-              <div className="text-base font-bold text-sky-700">{summary.onDuty}</div>
-            </div>
-          </div>
-
-          {/* Search & Filter Controls */}
-          <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white">
-            <div className="relative w-full sm:w-72">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
-              <input
-                type="text"
-                placeholder="Search name or roll number..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Filter className="w-3.5 h-3.5 text-slate-500" />
-              <span className="text-xs text-slate-600 font-medium">Filter Status:</span>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-slate-50 border border-slate-300 text-xs text-slate-800 rounded-xl px-3 py-1.5 font-medium focus:outline-none"
-              >
-                <option value="ALL">All Statuses</option>
-                <option value="PRESENT">Present</option>
-                <option value="ABSENT">Absent</option>
-                <option value="LATE">Late</option>
-                <option value="EXCUSED">Excused</option>
-                <option value="MEDICAL_LEAVE">Medical Leave</option>
-                <option value="ON_DUTY">On Duty</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Interactive Student Roster Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 uppercase font-bold text-[10px] tracking-wider border-b border-slate-200">
-                <tr>
-                  <th className="py-3 px-4 w-12">#</th>
-                  <th className="py-3 px-4">Roll Number</th>
-                  <th className="py-3 px-4">Student Name</th>
-                  <th className="py-3 px-4">Current Status</th>
-                  <th className="py-3 px-4 text-center">Quick Toggles</th>
-                  <th className="py-3 px-4">Remarks</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-medium">
-                {filteredRecords.map((stu, index) => {
-                  const isLocked = !!currentSession?.isLocked;
-                  return (
-                    <tr
-                      key={stu.studentId}
-                      className={`hover:bg-slate-50/80 transition-colors ${
-                        stu.status === 'ABSENT'
-                          ? 'bg-rose-50/30'
-                          : stu.status === 'LATE'
-                          ? 'bg-amber-50/30'
-                          : ''
-                      }`}
-                    >
-                      <td className="py-3 px-4 text-slate-400 font-medium">{index + 1}</td>
-                      <td className="py-3 px-4 font-mono font-bold text-slate-800">
-                        {stu.enrollmentNumber}
-                      </td>
-                      <td className="py-3 px-4 text-slate-900 font-semibold">
-                        {stu.studentName}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold border ${
-                            stu.status === 'PRESENT'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : stu.status === 'ABSENT'
-                              ? 'bg-rose-50 text-rose-700 border-rose-200'
-                              : stu.status === 'LATE'
-                              ? 'bg-amber-50 text-amber-800 border-amber-200'
-                              : stu.status === 'EXCUSED'
-                              ? 'bg-blue-50 text-blue-700 border-blue-200'
-                              : stu.status === 'MEDICAL_LEAVE'
-                              ? 'bg-purple-50 text-purple-700 border-purple-200'
-                              : 'bg-sky-50 text-sky-700 border-sky-200'
-                          }`}
-                        >
-                          {stu.status}
-                        </span>
-                      </td>
-
-                      {/* Quick Toggles */}
-                      <td className="py-3 px-4">
-                        <div className="flex items-center justify-center space-x-1">
-                          <button
-                            disabled={isLocked}
-                            onClick={() => handleStatusChange(stu.studentId, 'PRESENT')}
-                            title="Mark Present"
-                            className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
-                              stu.status === 'PRESENT'
-                                ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-700'
-                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                            } ${isLocked ? 'opacity-40 cursor-not-allowed' : ''}`}
-                          >
-                            P
-                          </button>
-                          <button
-                            disabled={isLocked}
-                            onClick={() => handleStatusChange(stu.studentId, 'ABSENT')}
-                            title="Mark Absent"
-                            className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
-                              stu.status === 'ABSENT'
-                                ? 'bg-rose-600 text-white shadow-sm ring-1 ring-rose-700'
-                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                            } ${isLocked ? 'opacity-40 cursor-not-allowed' : ''}`}
-                          >
-                            A
-                          </button>
-                          <button
-                            disabled={isLocked}
-                            onClick={() => handleStatusChange(stu.studentId, 'LATE')}
-                            title="Mark Late"
-                            className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
-                              stu.status === 'LATE'
-                                ? 'bg-amber-600 text-white shadow-sm ring-1 ring-amber-700'
-                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                            } ${isLocked ? 'opacity-40 cursor-not-allowed' : ''}`}
-                          >
-                            L
-                          </button>
-                          <button
-                            disabled={isLocked}
-                            onClick={() => handleStatusChange(stu.studentId, 'EXCUSED')}
-                            title="Mark Excused"
-                            className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
-                              stu.status === 'EXCUSED'
-                                ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-700'
-                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                            } ${isLocked ? 'opacity-40 cursor-not-allowed' : ''}`}
-                          >
-                            E
-                          </button>
-                          <button
-                            disabled={isLocked}
-                            onClick={() => handleStatusChange(stu.studentId, 'MEDICAL_LEAVE')}
-                            title="Medical Leave"
-                            className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
-                              stu.status === 'MEDICAL_LEAVE'
-                                ? 'bg-purple-600 text-white shadow-sm ring-1 ring-purple-700'
-                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                            } ${isLocked ? 'opacity-40 cursor-not-allowed' : ''}`}
-                          >
-                            M
-                          </button>
-                          <button
-                            disabled={isLocked}
-                            onClick={() => handleStatusChange(stu.studentId, 'ON_DUTY')}
-                            title="On Duty"
-                            className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
-                              stu.status === 'ON_DUTY'
-                                ? 'bg-sky-600 text-white shadow-sm ring-1 ring-sky-700'
-                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                            } ${isLocked ? 'opacity-40 cursor-not-allowed' : ''}`}
-                          >
-                            O
-                          </button>
-                        </div>
-                      </td>
-
-                      {/* Remarks */}
-                      <td className="py-3 px-4">
-                        <input
-                          type="text"
-                          placeholder={isLocked ? '-' : 'Add remark...'}
-                          value={stu.remarks || ''}
-                          disabled={isLocked}
-                          onChange={(e) => handleRemarksChange(stu.studentId, e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-[11px] text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 disabled:bg-transparent"
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Past Sessions History Tab */}
-      {activeTab === 'history' && (
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Completed Attendance Sessions Log</h3>
-              <p className="text-xs text-slate-500">All submitted records locked and recorded in database</p>
-            </div>
-            {onOpenUniversityReport && (
-              <button
-                onClick={() => onOpenUniversityReport('course-ds', 'sec-ds-a')}
-                className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm"
-              >
-                <Award className="w-3.5 h-3.5" /> Official Board Report
-              </button>
-            )}
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
-                <tr>
-                  <th className="py-3 px-4">#</th>
-                  <th className="py-3 px-4">Date</th>
-                  <th className="py-3 px-4">Lecture Title</th>
-                  <th className="py-3 px-4">Present / Total</th>
-                  <th className="py-3 px-4">Attendance %</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-medium">
-                {sessions
-                  .slice()
-                  .reverse()
-                  .map((s) => {
-                    const pct = s.summary.totalStudents
-                      ? Math.round((s.summary.presentCount / s.summary.totalStudents) * 100)
-                      : 0;
-                    return (
-                      <tr key={s.id} className="hover:bg-slate-50/80">
-                        <td className="py-3 px-4 text-slate-400">#{s.sessionNumber}</td>
-                        <td className="py-3 px-4 font-mono font-semibold text-slate-700">{s.lectureDate}</td>
-                        <td className="py-3 px-4 text-slate-900 font-bold">{s.sessionTitle}</td>
-                        <td className="py-3 px-4 text-slate-600">
-                          {s.summary.presentCount} / {s.summary.totalStudents}
-                        </td>
-                        <td className="py-3 px-4 font-bold text-emerald-700">{pct}%</td>
-                        <td className="py-3 px-4">
-                          {s.isLocked ? (
-                            <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-semibold flex items-center gap-1 w-fit">
-                              <Lock className="w-2.5 h-2.5 text-slate-500" /> Locked
-                            </span>
-                          ) : (
-                            <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold w-fit">
-                              Draft
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4">
-                          <button
-                            onClick={() => {
-                              handleSelectSession(s);
-                            }}
-                            className="text-indigo-600 hover:text-indigo-800 text-xs font-bold flex items-center gap-1"
-                          >
-                            Open <ExternalLink className="w-3 h-3" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* 75% Compliance Defaulter Monitor Tab */}
-      {activeTab === 'compliance' && (
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-amber-600" />
-                75% Attendance Compliance Monitor
-              </h3>
-              <p className="text-xs text-slate-500">
-                Section: Data Structures (CS-301) Section A • Threshold Requirement: 75.0%
-              </p>
-            </div>
-            <div className="text-xs px-3 py-1 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 font-bold">
-              {defaultersCount} Defaulters Detected
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
-                <tr>
-                  <th className="py-3 px-4">Roll Number</th>
-                  <th className="py-3 px-4">Student Name</th>
-                  <th className="py-3 px-4">Attended / Total</th>
-                  <th className="py-3 px-4">Percentage</th>
-                  <th className="py-3 px-4">Compliance Status</th>
-                  <th className="py-3 px-4">Recovery Action Required</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-medium">
-                {complianceStats.map((stu) => (
-                  <tr
-                    key={stu.studentId}
-                    className={`hover:bg-slate-50/80 ${
-                      stu.isDefaulter ? 'bg-rose-50/30' : ''
-                    }`}
-                  >
-                    <td className="py-3 px-4 font-mono font-bold text-slate-800">
-                      {stu.enrollmentNumber}
+                  <tr key={s.id}>
+                    <td className={cn(td, 'text-slate-500 tabular-nums')}>{s.sessionNumber}</td>
+                    <td className={cn(td, 'whitespace-nowrap tabular-nums')}>{formatDate(s.lectureDate)}</td>
+                    <td className={cn(td, 'min-w-60 font-medium text-slate-900')}>{s.sessionTitle}</td>
+                    <td className={cn(td, 'text-right whitespace-nowrap tabular-nums')}>
+                      {s.records.filter((r) => r.status !== 'ABSENT').length} of {s.records.length}
                     </td>
-                    <td className="py-3 px-4 text-slate-900 font-bold">{stu.fullName}</td>
-                    <td className="py-3 px-4 text-slate-600">
-                      {stu.attendedLectures} / {stu.totalLectures}
-                    </td>
-                    <td className="py-3 px-4 font-bold text-sm">
-                      <span className={stu.isDefaulter ? 'text-rose-600' : 'text-emerald-700'}>
-                        {stu.percentage}%
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      {stu.isDefaulter ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 font-bold">
-                          <AlertTriangle className="w-3 h-3 text-rose-600" /> Defaulter (&lt;75%)
-                        </span>
+                    <td className={cn(td, 'text-right tabular-nums')}>{formatPercent(attendanceRate(s.records))}</td>
+                    <td className={td}>
+                      {s.isLocked ? (
+                        <Badge>
+                          <Lock aria-hidden /> Locked
+                        </Badge>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">
-                          <Check className="w-3 h-3 text-emerald-600" /> Compliant
-                        </span>
+                        <Badge tone="warning">Draft</Badge>
                       )}
                     </td>
-                    <td className="py-3 px-4 text-slate-500 font-medium">
-                      {stu.isDefaulter ? (
-                        <span className="text-amber-800 font-bold text-xs">
-                          Requires {stu.neededFor75} consecutive presences to reach 75%
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 text-xs">In good standing</span>
-                      )}
+                    <td className={cn(td, 'text-right')}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          guard(() => {
+                            setPickedId(s.id);
+                            onNavigate('attendance');
+                          })
+                        }
+                      >
+                        {s.isLocked ? 'View marks' : 'Continue marking'}
+                      </Button>
                     </td>
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+            </Table>
+          )}
+        </Panel>
+        {confirm?.kind === 'discard' && (
+          <DiscardDialog onClose={() => setConfirm(null)} onDiscard={() => { setDraft(null); confirm.then(); }} />
+        )}
+      </>
+    );
+  }
 
-      {/* Confirmation Modal for Immutability Locking */}
-      {isLockModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white border border-slate-200 max-w-md w-full rounded-2xl p-6 shadow-2xl space-y-4">
-            <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center">
-              <Lock className="w-6 h-6" />
-            </div>
+  if (view === 'compliance') {
+    const stats = complianceQ.data?.stats ?? [];
+    const below = stats.filter((s) => s.isDefaulter).length;
+    const average = stats.length ? stats.reduce((sum, s) => sum + s.percentage, 0) / stats.length : 0;
+    return (
+      <>
+        <PageHeader
+          title="Compliance"
+          description={`${context} Late, excused, medical leave and on-duty marks count as attended. Only locked sessions are included.`}
+          actions={<>{sectionPicker}{reportButton}</>}
+        />
+        {!complianceQ.data ? (
+          <Panel>
+            <LoadState error={complianceQ.error} onRetry={complianceQ.reload} />
+          </Panel>
+        ) : stats.length === 0 ? (
+          <Panel>
+            <EmptyState
+              title="No locked sessions yet"
+              description="Figures appear once the first session for this section is submitted."
+            />
+          </Panel>
+        ) : (
+          <>
+            <Stats
+              items={[
+                {
+                  label: 'Students',
+                  value: stats.length,
+                  detail: plural(Math.max(...stats.map((s) => s.totalLectures)), 'locked session'),
+                },
+                {
+                  label: `At or above ${THRESHOLD}%`,
+                  value: stats.length - below,
+                  detail: `${formatPercent(complianceQ.data.complianceRate)} of the section`,
+                },
+                { label: `Below ${THRESHOLD}%`, value: below, alert: below > 0 },
+                { label: 'Section average', value: formatPercent(average) },
+              ]}
+            />
+            <Panel className="mt-6" title="Students" description="Lowest attendance first.">
+              <Table>
+                <thead>
+                  <tr>
+                    <th className={th}>Student</th>
+                    <th className={cn(th, 'text-right')}>Attended</th>
+                    <th className={th}>Attendance</th>
+                    <th className={th}>Standing</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {stats.map((s) => (
+                    <tr key={s.studentId}>
+                      <td className={td}>
+                        <Person name={s.fullName} detail={s.enrollmentNumber} />
+                      </td>
+                      <td className={cn(td, 'text-right whitespace-nowrap tabular-nums')}>
+                        {s.attendedLectures} of {s.totalLectures}
+                      </td>
+                      <td className={td}>
+                        <AttendanceValue value={s.percentage} />
+                      </td>
+                      <td className={cn(td, 'whitespace-nowrap')}>
+                        {s.isDefaulter ? (
+                          <span className="flex items-center gap-2">
+                            <Badge tone="danger">Below {THRESHOLD}%</Badge>
+                            <span className="text-slate-600">
+                              Needs {plural(s.neededFor75, 'consecutive lecture')}
+                            </span>
+                          </span>
+                        ) : (
+                          <Badge tone="success">Meets {THRESHOLD}%</Badge>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </Panel>
+          </>
+        )}
+      </>
+    );
+  }
 
-            <div>
-              <h3 className="text-lg font-bold text-slate-900">
-                Submit & Permanently Lock Attendance?
-              </h3>
-              <p className="text-xs text-slate-600 mt-2 leading-relaxed">
-                Under institutional regulatory rules, **submitted attendance is strictly immutable**.
-                Once submitted:
+  // Default view: mark attendance.
+  const counts = Object.fromEntries(
+    STATUSES.map((s) => [s.value, records.filter((r) => r.status === s.value).length])
+  ) as Record<AttendanceStatus, number>;
+  const needle = search.trim().toLowerCase();
+  const rows = records
+    .map((record, index) => ({ record, number: index + 1 }))
+    .filter(
+      ({ record }) =>
+        (statusFilter === 'ALL' || record.status === statusFilter) &&
+        `${record.studentName} ${record.enrollmentNumber}`.toLowerCase().includes(needle)
+    );
+  const hasPrevious = sessions.some((s) => s.isLocked && s.id !== session?.id);
+
+  return (
+    <>
+      <PageHeader
+        title="Mark attendance"
+        description={context}
+        actions={
+          <>
+            {sectionPicker}
+            <Button onClick={() => guard(() => setCreating(true))}>
+              <Plus aria-hidden /> New session
+            </Button>
+          </>
+        }
+      />
+
+      {!sessionsQ.data ? (
+        <Panel>
+          <LoadState error={sessionsQ.error} onRetry={sessionsQ.reload} />
+        </Panel>
+      ) : !session ? (
+        <Panel>
+          <EmptyState
+            title="No sessions yet"
+            description="Create a session for today’s lecture to start recording attendance."
+            action={
+              <Button onClick={() => setCreating(true)}>
+                <Plus aria-hidden /> New session
+              </Button>
+            }
+          />
+        </Panel>
+      ) : (
+        <Panel>
+          <div className="flex flex-col gap-4 border-b border-slate-200 px-5 py-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-base font-semibold text-slate-900">{session.sessionTitle}</h2>
+                {session.isLocked ? (
+                  <Badge>
+                    <Lock aria-hidden /> Locked
+                  </Badge>
+                ) : (
+                  <Badge tone="warning">Draft</Badge>
+                )}
+                {dirty && <Badge tone="brand">Unsaved changes</Badge>}
+              </div>
+              <p className="mt-0.5 text-sm text-slate-600">
+                Session {session.sessionNumber}, {formatDate(session.lectureDate)}
               </p>
-              <ul className="text-xs text-slate-600 mt-2 space-y-1 list-disc list-inside">
-                <li>You cannot edit or unmark students for this session.</li>
-                <li>The attendance percentage of all students will recalculate immediately.</li>
-                <li>Any exception or correction requires formal HOD audit approval.</li>
-              </ul>
             </div>
-
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-700">
-              <div className="flex justify-between py-0.5">
-                <span>Present:</span>
-                <span className="font-bold text-emerald-700">{summary.present}</span>
-              </div>
-              <div className="flex justify-between py-0.5">
-                <span>Absent:</span>
-                <span className="font-bold text-rose-700">{summary.absent}</span>
-              </div>
-              <div className="flex justify-between py-0.5">
-                <span>Total Enrolled:</span>
-                <span className="font-bold text-slate-900">{summary.total}</span>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                onClick={() => setIsLockModalOpen(false)}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 transition-all border border-slate-200"
+            <label className="flex shrink-0 items-center gap-2 text-sm">
+              <span className="text-slate-600">Session</span>
+              <select
+                value={session.id}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  guard(() => setPickedId(id));
+                }}
+                className={cn(control, 'w-auto')}
               >
-                Cancel & Review
-              </button>
-              <button
-                onClick={handleConfirmSubmitAndLock}
-                disabled={isLoading}
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-xs font-bold text-white shadow-sm transition-all flex items-center gap-1.5"
-              >
-                <Lock className="w-3.5 h-3.5" />
-                Yes, Lock & Submit
-              </button>
-            </div>
+                {sessions.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {`Session ${s.sessionNumber}, ${formatDate(s.lectureDate)}${s.isLocked ? '' : ' (draft)'}`}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
-        </div>
+
+          {session.isLocked ? (
+            <div className="border-b border-slate-200 px-5 py-3">
+              <Notice>
+                {session.submittedAt && <>Submitted {formatDateTime(session.submittedAt)}. </>}
+                Locked marks can’t be edited. They change only when the head of department approves leave that covers
+                this date.
+              </Notice>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 px-5 py-3">
+              <Button variant="secondary" size="sm" onClick={() => mark(null, 'PRESENT')}>
+                Mark all present
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => mark(null, 'ABSENT')}>
+                Mark all absent
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => copyPrevious(session)}
+                loading={busy === 'copy'}
+                disabled={!hasPrevious || busy !== null}
+                title={hasPrevious ? undefined : 'No locked session to copy from'}
+              >
+                <Copy aria-hidden /> Copy previous session
+              </Button>
+              <div className="flex w-full gap-2 sm:ml-auto sm:w-auto">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => saveDraft(session)}
+                  loading={busy === 'save'}
+                  disabled={!dirty || busy !== null}
+                >
+                  <Save aria-hidden /> Save draft
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => setConfirm({ kind: 'submit' })}
+                  loading={busy === 'submit'}
+                  disabled={busy !== null}
+                >
+                  <Lock aria-hidden /> Submit and lock
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <dl className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-slate-200 bg-slate-50 px-5 py-3 text-sm">
+            {STATUSES.map((s) => (
+              <div key={s.value} className="flex items-center gap-1.5">
+                <dt className="flex items-center gap-1.5 text-slate-600">
+                  <span
+                    aria-hidden
+                    className={cn('grid size-5 place-items-center rounded text-xs font-semibold text-white', KEY[s.tone])}
+                  >
+                    {s.code}
+                  </span>
+                  {s.label}
+                </dt>
+                <dd className="font-semibold text-slate-900 tabular-nums">{counts[s.value]}</dd>
+              </div>
+            ))}
+            <div className="flex items-center gap-1.5 sm:ml-auto">
+              <dt className="text-slate-600">Attendance</dt>
+              <dd className="font-semibold text-slate-900 tabular-nums">{formatPercent(attendanceRate(records))}</dd>
+            </div>
+          </dl>
+
+          <div className="flex flex-col gap-3 border-b border-slate-200 px-5 py-3 sm:flex-row sm:items-center">
+            <div className="relative sm:w-72">
+              <Search aria-hidden className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search name or roll number"
+                aria-label="Search students"
+                className={cn(control, 'pl-9')}
+              />
+            </div>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as AttendanceStatus | 'ALL')}
+              aria-label="Filter by mark"
+              className={cn(control, 'sm:w-44')}
+            >
+              <option value="ALL">All marks</option>
+              {STATUSES.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-sm text-slate-500 sm:ml-auto">
+              {rows.length === records.length
+                ? plural(records.length, 'student')
+                : `${rows.length} of ${plural(records.length, 'student')}`}
+            </p>
+          </div>
+
+          <Table>
+            <thead>
+              <tr>
+                <th className={cn(th, 'hidden w-14 sm:table-cell')}>No.</th>
+                <th className={th}>Student</th>
+                <th className={th}>Mark</th>
+                <th className={cn(th, 'min-w-52')}>Remarks</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {rows.map(({ record, number }) => (
+                <tr key={record.studentId} className={cn(record.status === 'ABSENT' && 'bg-red-50/60')}>
+                  <td className={cn(td, 'hidden text-slate-500 tabular-nums sm:table-cell')}>{number}</td>
+                  <td className={td}>
+                    <Person name={record.studentName} detail={record.enrollmentNumber} />
+                  </td>
+                  <td className={td}>
+                    <MarkPicker
+                      record={record}
+                      disabled={session.isLocked}
+                      onChange={(status) => mark(record.studentId, status)}
+                    />
+                  </td>
+                  <td className={td}>
+                    <input
+                      value={record.remarks ?? ''}
+                      disabled={session.isLocked}
+                      onChange={(e) =>
+                        update((r) => (r.studentId === record.studentId ? { ...r, remarks: e.target.value } : r))
+                      }
+                      placeholder={session.isLocked ? '' : 'Optional'}
+                      aria-label={`Remarks for ${record.studentName}`}
+                      className={cn(control, 'h-8')}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+          {rows.length === 0 && <EmptyState title="No students match these filters" />}
+        </Panel>
       )}
-    </div>
+
+      {creating && (
+        <FormDialog
+          title="New session"
+          description={sectionLabel(section, meta.courses)}
+          submitLabel="Create session"
+          onClose={() => setCreating(false)}
+          onSubmit={createSession}
+        >
+          <Field label="Lecture date">
+            <input type="date" name="date" required defaultValue={todayISO()} className={control} />
+          </Field>
+          <Field label="Topic" hint="Optional. Shown in session history.">
+            <input name="topic" maxLength={120} placeholder={`Lecture ${nextNumber}`} className={control} />
+          </Field>
+          <p className="text-sm text-slate-600">
+            All {plural(section.studentCount, 'student')} start as present. Adjust marks before you submit.
+          </p>
+        </FormDialog>
+      )}
+
+      {confirm?.kind === 'submit' && session && (
+        <ConfirmDialog
+          title="Submit and lock this session?"
+          confirmLabel="Submit and lock"
+          onClose={() => setConfirm(null)}
+          onConfirm={() => submit(session)}
+        >
+          <p>
+            Session {session.sessionNumber}, {formatDate(session.lectureDate)}. After submission the marks can’t be
+            edited, and each student’s attendance percentage is recalculated.
+          </p>
+          <dl className="grid grid-cols-3 gap-px overflow-hidden rounded-md border border-slate-200 bg-slate-200 text-center">
+            {[
+              ['Attended', records.length - counts.ABSENT],
+              ['Absent', counts.ABSENT],
+              ['Enrolled', records.length],
+            ].map(([label, value]) => (
+              <div key={label} className="bg-white px-3 py-2">
+                <dt className="text-xs text-slate-500">{label}</dt>
+                <dd className="text-lg font-semibold text-slate-900 tabular-nums">{value}</dd>
+              </div>
+            ))}
+          </dl>
+          {dirty && <p>Your unsaved changes are included in the submission.</p>}
+        </ConfirmDialog>
+      )}
+
+      {confirm?.kind === 'discard' && (
+        <DiscardDialog onClose={() => setConfirm(null)} onDiscard={() => { setDraft(null); confirm.then(); }} />
+      )}
+    </>
   );
-};
+}
+
+function DiscardDialog({ onClose, onDiscard }: { onClose: () => void; onDiscard: () => void }) {
+  return (
+    <ConfirmDialog
+      title="Discard unsaved marks?"
+      confirmLabel="Discard changes"
+      cancelLabel="Keep editing"
+      variant="danger"
+      onClose={onClose}
+      onConfirm={onDiscard}
+    >
+      <p>Marks you changed in this session haven’t been saved. Save a draft first to keep them.</p>
+    </ConfirmDialog>
+  );
+}
+
+/** One radio group per student: arrow keys move between marks, as with any native radio group. */
+function MarkPicker({
+  record,
+  disabled,
+  onChange,
+}: {
+  record: AttendanceRecord;
+  disabled: boolean;
+  onChange: (status: AttendanceStatus) => void;
+}) {
+  return (
+    <fieldset disabled={disabled} className="flex gap-1">
+      <legend className="sr-only">Mark for {record.studentName}</legend>
+      {STATUSES.map((s) => (
+        <label key={s.value} title={s.label}>
+          <input
+            type="radio"
+            name={`mark-${record.studentId}`}
+            value={s.value}
+            checked={record.status === s.value}
+            onChange={() => onChange(s.value)}
+            className="peer sr-only"
+          />
+          <span
+            aria-hidden
+            className={cn(
+              'grid size-7 cursor-pointer place-items-center rounded-md border border-slate-300 bg-white text-xs font-semibold text-slate-600 transition-colors sm:size-8',
+              'peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-brand-600',
+              'peer-disabled:cursor-not-allowed peer-disabled:opacity-40',
+              CHECKED[s.tone],
+              'peer-checked:peer-disabled:opacity-100'
+            )}
+          >
+            {s.code}
+          </span>
+          <span className="sr-only">{s.label}</span>
+        </label>
+      ))}
+    </fieldset>
+  );
+}

@@ -4,7 +4,10 @@ import { dbService } from '@/lib/db-service';
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const studentId = searchParams.get('studentId') || 'stu-4';
+    const studentId = searchParams.get('studentId');
+    if (!studentId) {
+      return NextResponse.json({ error: 'studentId is required' }, { status: 400 });
+    }
 
     const summary = await dbService.getStudentPersonalSummary(studentId);
     const leaves = await dbService.getLeaves({ studentId });

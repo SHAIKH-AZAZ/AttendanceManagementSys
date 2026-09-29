@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { dbService } from '@/lib/db-service';
+import { dbService, publicUser } from '@/lib/db-service';
 
 export async function PUT(
   request: Request,
@@ -9,11 +9,15 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
-    const updatedUser = await dbService.updateUser(id, body);
+    // Only account status is editable from the admin UI; never accept ids, roles or passwords here.
+    if (typeof body.isActive !== 'boolean') {
+      return NextResponse.json({ error: 'Nothing to update.' }, { status: 400 });
+    }
+    const updatedUser = await dbService.updateUser(id, { isActive: body.isActive });
 
     return NextResponse.json({
       message: 'User updated successfully.',
-      user: updatedUser,
+      user: publicUser(updatedUser),
     });
   } catch (error) {
     return NextResponse.json(
@@ -24,7 +28,7 @@ export async function PUT(
 }
 
 export async function DELETE(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {

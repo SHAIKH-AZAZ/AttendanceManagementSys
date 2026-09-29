@@ -200,3 +200,84 @@ export interface StudentComplianceStats {
   isDefaulter: boolean;
   neededFor75: number;
 }
+
+// --- API response shapes shared by route handlers and the client ---
+
+export interface SectionSummary extends Omit<Section, 'enrolledStudents'> {
+  studentCount: number;
+  facultyName: string;
+}
+
+export interface AcademicMeta {
+  campuses: Campus[];
+  departments: Department[];
+  trimesters: Trimester[];
+  courses: Course[];
+  sections: SectionSummary[];
+}
+
+export interface ComplianceResponse {
+  totalStudents: number;
+  defaulterCount: number;
+  complianceRate: number;
+  stats: StudentComplianceStats[];
+  defaulters: StudentComplianceStats[];
+}
+
+export interface StudentSummary {
+  totalSessions: number;
+  presentCount: number;
+  absentCount: number;
+  lateCount: number;
+  excusedCount: number;
+  overallPercentage: number;
+  isCompliant: boolean;
+  courses: {
+    courseId: string;
+    code: string;
+    title: string;
+    total: number;
+    attended: number;
+    percentage: number;
+    isDefaulter: boolean;
+    neededFor75: number;
+  }[];
+}
+
+export interface ImportPreview {
+  totalRecords: number;
+  validCount: number;
+  duplicateCount: number;
+  invalidCount: number;
+  duplicates: { row: number; enrollmentNumber: string; reason: string }[];
+  invalidRecords: { row: number; reason: string }[];
+  sampleValid: { enrollmentNumber: string; fullName: string; email: string }[];
+}
+
+export interface UniversityReport {
+  institution: {
+    name: string;
+    campus: string;
+    department: string;
+    academicSession: string;
+    term: string;
+    documentRef: string;
+    generatedDate: string;
+  };
+  course: {
+    code: string;
+    title: string;
+    credits: number;
+    section: string;
+    facultyName: string;
+  };
+  metrics: {
+    totalEnrolled: number;
+    compliantStudents: number;
+    defaulterStudents: number;
+    classAveragePercentage: string;
+    thresholdRequired: string;
+  };
+  students: StudentComplianceStats[];
+  signatories: { title: string; name: string; designation: string }[];
+}

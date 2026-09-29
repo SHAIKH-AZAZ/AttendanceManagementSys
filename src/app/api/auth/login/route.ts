@@ -1,42 +1,30 @@
 import { NextResponse } from 'next/server';
-import { dbService } from '@/lib/db-service';
+import { dbService, publicUser } from '@/lib/db-service';
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { email, password } = body;
-    const ssoRole = body.ssoRole || body.role;
+    const { email, password } = await request.json();
 
-    let targetEmail = email;
-
-    // Support 1-click SSO simulation by role
-    if (ssoRole) {
-      const users = await dbService.getUsers();
-      const ssoUser = users.find((u) => u.role === ssoRole);
-      if (ssoUser) {
-        targetEmail = ssoUser.email;
-      }
-    }
-
-    if (!targetEmail) {
+    if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
       return NextResponse.json(
-        { error: 'Email or valid SSO role is required' },
+        { error: 'Enter your email address and password.' },
         { status: 400 }
       );
     }
 
-    const { user, token } = await dbService.authenticate(targetEmail, password);
+    const { user, token } = await dbService.authenticate(email, password);
 
     const response = NextResponse.json({
       message: 'Login successful',
-      user,
+      user: publicUser(user),
       token,
     });
 
-    // Set user session cookie (accessible to client and server)
+    // ponytail: the cookie holds a plain user id; replace with a signed session before real deployment.
     response.cookies.set('attendease_user_id', user.id, {
       path: '/',
-      httpOnly: false, // allow client context to sync state cleanly
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7, // 7 days
     });

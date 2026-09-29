@@ -1,398 +1,430 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { LeaveApplication, StudentComplianceStats } from '@/types';
+import { useMemo, useState } from 'react';
+import { FileText } from 'lucide-react';
+import type { AcademicMeta, ComplianceResponse, LeaveApplication, User } from '@/types';
 import {
-  ShieldCheck,
-  AlertTriangle,
-  Mail,
-  CheckCircle2,
-  XCircle,
-  FileText,
-  TrendingUp,
-  Clock,
-  Sparkles,
-  Award,
-} from 'lucide-react';
+  api,
+  dayCount,
+  formatDate,
+  formatPercent,
+  humanize,
+  LEAVE_STATUS_TONE,
+  LEAVE_TYPES,
+  plural,
+  THRESHOLD,
+  useApi,
+} from '@/lib/client';
+import {
+  AttendanceValue,
+  Badge,
+  Button,
+  EmptyState,
+  Field,
+  FormDialog,
+  LoadState,
+  PageHeader,
+  Panel,
+  Person,
+  Stats,
+  Table,
+  cn,
+  control,
+  td,
+  textareaClass,
+  th,
+  useToast,
+} from '@/components/ui';
 
 interface HODPortalProps {
-  activeTab: string;
-  onOpenUniversityReport?: (courseId: string, sectionId: string) => void;
+  user: User;
+  meta: AcademicMeta;
+  view: string;
+  onOpenReport: (courseId: string, sectionId: string) => void;
 }
 
-export const HODPortal: React.FC<HODPortalProps> = ({
-  activeTab,
-  onOpenUniversityReport,
-}) => {
-  const [leaves, setLeaves] = useState<LeaveApplication[]>([]);
-  const [defaulters, setDefaulters] = useState<StudentComplianceStats[]>([]);
-  const [complianceRate, setComplianceRate] = useState<number>(80);
-  const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
-  const [hodComments, setHodComments] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
+export function HODPortal({ user, meta, view, onOpenReport }: HODPortalProps) {
+  const notify = useToast();
+  const department = meta.departments.find((d) => d.id === user.departmentId);
+  const campus = meta.campuses.find((c) => c.id === department?.campusId);
+  const sections = useMemo(
+    () => meta.sections.filter((s) => s.departmentId === user.departmentId),
+    [meta.sections, user.departmentId]
+  );
 
-  const fetchData = async () => {
-    try {
-      const leavesRes = await fetch('/api/leaves?departmentId=dept-cs');
-      const leavesJson = await leavesRes.json();
-      if (leavesJson.leaves) setLeaves(leavesJson.leaves);
+  const complianceQ = useApi<ComplianceResponse[]>(
+    sections.map((s) => `/api/compliance/defaulters?courseId=${s.courseId}&sectionId=${s.id}`)
+  );
+  const leavesQ = useApi<{ leaves: LeaveApplication[] }>(
+    user.departmentId ? `/api/leaves?departmentId=${user.departmentId}` : null
+  );
 
-      const defRes = await fetch('/api/compliance/defaulters?courseId=course-ds&sectionId=sec-ds-a');
-      const defJson = await defRes.json();
-      if (defJson.defaulters) setDefaulters(defJson.defaulters);
-      if (defJson.complianceRate !== undefined) setComplianceRate(defJson.complianceRate);
-    } catch (err) {
-      console.error('Error fetching HOD data:', err);
-    }
+  const [leaveFilter, setLeaveFilter] = useState<'PENDING' | 'ALL'>('PENDING');
+  const [reviewing, setReviewing] = useState<LeaveApplication | null>(null);
+  const [courseFilter, setCourseFilter] = useState('ALL');
+  const [warned, setWarned] = useState<ReadonlySet<string>>(new Set());
+  const [warningKey, setWarningKey] = useState<string | null>(null);
+
+  const leaves = leavesQ.data?.leaves ?? [];
+  const pending = leaves.filter((l) => l.status === 'PENDING');
+  const description = department && `${department.name}${campus ? `, ${campus.name}` : ''}`;
+  const courseName = (courseId: string) => {
+    const course = meta.courses.find((c) => c.id === courseId);
+    return course ? `${course.code} ${course.title}` : courseId;
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  async function review(data: FormData) {
+    if (!reviewing) return;
+    const decision = String(data.get('action'));
+    const comment = String(data.get('comment') ?? '').trim();
+    if (decision === 'REJECTED' && !comment) {
+      throw new Error('Add a comment that explains why the request is rejected.');
+    }
+    const result = await api.post<{ message: string }>(`/api/leaves/${reviewing.id}/review`, {
+      hodUserId: user.id,
+      status: decision,
+      reviewComments: comment || undefined,
+    });
+    leavesQ.reload();
+    complianceQ.reload();
+    notify(result.message);
+  }
 
-  const handleReviewLeave = async (leaveId: string, status: 'APPROVED' | 'REJECTED') => {
-    setIsProcessing(true);
-    try {
-      const res = await fetch(`/api/leaves/${leaveId}/review`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          hodUserId: 'user-hod-1',
-          status,
-          reviewComments: hodComments || `Leave application ${status.toLowerCase()} by HOD.`,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setNotification({
-          type: 'success',
-          message: data.message || `Leave ${status.toLowerCase()} successfully.`,
+  if (view === 'leave') {
+    const shown = leaveFilter === 'PENDING' ? pending : leaves;
+    return (
+      <>
+        <PageHeader
+          title="Leave requests"
+          description="Approving a request marks the student excused, on medical leave or on duty for every lecture in that period. Each decision is recorded in the audit log."
+        />
+        <Panel
+          title="Requests"
+          actions={
+            <div role="group" aria-label="Filter requests" className="inline-flex rounded-md border border-slate-300 bg-white p-0.5">
+              {(
+                [
+                  ['PENDING', `Awaiting review (${pending.length})`],
+                  ['ALL', `All (${leaves.length})`],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={leaveFilter === value}
+                  onClick={() => setLeaveFilter(value)}
+                  className={cn(
+                    'h-7 rounded px-3 text-sm font-medium',
+                    leaveFilter === value ? 'bg-brand-700 text-white' : 'text-slate-600 hover:text-slate-900'
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          }
+        >
+          {!leavesQ.data ? (
+            <LoadState error={leavesQ.error} onRetry={leavesQ.reload} />
+          ) : shown.length === 0 ? (
+            <EmptyState
+              title={leaveFilter === 'PENDING' ? 'No requests awaiting review' : 'No leave requests yet'}
+              description={leaveFilter === 'PENDING' ? 'New applications from students in your department appear here.' : undefined}
+            />
+          ) : (
+            <Table>
+              <thead>
+                <tr>
+                  <th className={th}>Student</th>
+                  <th className={th}>Type</th>
+                  <th className={th}>Dates</th>
+                  <th className={th}>Reason</th>
+                  <th className={th}>Status</th>
+                  <th className={th}>
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {shown.map((leave) => (
+                  <tr key={leave.id}>
+                    <td className={cn(td, 'whitespace-nowrap')}>
+                      <Person name={leave.studentName} detail={leave.enrollmentNumber} />
+                    </td>
+                    <td className={cn(td, 'whitespace-nowrap')}>{LEAVE_TYPES[leave.leaveType]}</td>
+                    <td className={cn(td, 'whitespace-nowrap')}>
+                      <div className="tabular-nums">
+                        {formatDate(leave.startDate)} to {formatDate(leave.endDate)}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        {plural(dayCount(leave.startDate, leave.endDate), 'day')}, submitted {formatDate(leave.createdAt)}
+                      </div>
+                    </td>
+                    <td className={cn(td, 'max-w-sm min-w-60 text-slate-700')}>{leave.reason}</td>
+                    <td className={td}>
+                      <Badge tone={LEAVE_STATUS_TONE[leave.status]}>{humanize(leave.status)}</Badge>
+                    </td>
+                    <td className={cn(td, 'text-right whitespace-nowrap')}>
+                      {leave.status === 'PENDING' ? (
+                        <Button size="sm" onClick={() => setReviewing(leave)}>
+                          Review
+                        </Button>
+                      ) : (
+                        leave.reviewedAt && <span className="text-slate-500">Reviewed {formatDate(leave.reviewedAt)}</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          )}
+        </Panel>
+
+        {reviewing && (
+          <FormDialog
+            title="Review leave request"
+            description={`${reviewing.studentName}, ${reviewing.enrollmentNumber}`}
+            actions={[
+              { label: 'Reject', value: 'REJECTED', variant: 'secondary' },
+              { label: 'Approve', value: 'APPROVED' },
+            ]}
+            onClose={() => setReviewing(null)}
+            onSubmit={review}
+          >
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+              <div>
+                <dt className="text-slate-500">Type</dt>
+                <dd className="font-medium text-slate-900">{LEAVE_TYPES[reviewing.leaveType]}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Dates</dt>
+                <dd className="font-medium text-slate-900">
+                  {formatDate(reviewing.startDate)} to {formatDate(reviewing.endDate)}
+                  <span className="font-normal text-slate-500">
+                    {' '}
+                    ({plural(dayCount(reviewing.startDate, reviewing.endDate), 'day')})
+                  </span>
+                </dd>
+              </div>
+              <div className="col-span-2">
+                <dt className="text-slate-500">Reason</dt>
+                <dd className="text-slate-900">{reviewing.reason}</dd>
+              </div>
+              {reviewing.documentUrl && (
+                <div className="col-span-2">
+                  <dt className="text-slate-500">Supporting document</dt>
+                  <dd className="text-slate-900">Provided with the application</dd>
+                </div>
+              )}
+            </dl>
+            <Field label="Comment" hint="Required when rejecting. The student sees this comment.">
+              <textarea name="comment" rows={3} maxLength={500} className={textareaClass} />
+            </Field>
+          </FormDialog>
+        )}
+      </>
+    );
+  }
+
+  if (view === 'defaulters') {
+    const all = (complianceQ.data ?? []).flatMap((r) => r.defaulters).sort((a, b) => a.percentage - b.percentage);
+    const courseIds = [...new Set(sections.map((s) => s.courseId))];
+    const shown = courseFilter === 'ALL' ? all : all.filter((d) => d.courseId === courseFilter);
+
+    const recordWarning = async (key: string, student: (typeof all)[number]) => {
+      setWarningKey(key);
+      try {
+        await api.post('/api/compliance/alert', {
+          studentId: student.studentId,
+          studentName: student.fullName,
+          enrollmentNumber: student.enrollmentNumber,
+          courseCode: student.courseCode,
+          percentage: student.percentage,
         });
-        setHodComments('');
-        fetchData();
-      } else {
-        setNotification({ type: 'error', message: data.error || 'Failed to review leave.' });
+        setWarned((prev) => new Set(prev).add(key));
+        notify(`Warning recorded for ${student.fullName} in ${student.courseCode}.`);
+      } catch (err) {
+        notify((err as Error).message, 'error');
+      } finally {
+        setWarningKey(null);
       }
-    } catch {
-      setNotification({ type: 'error', message: 'Network error reviewing leave.' });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
+    };
 
-  const handleSendWarningEmail = async (stu: StudentComplianceStats) => {
-    try {
-      const res = await fetch('/api/compliance/alert', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          studentId: stu.studentId,
-          studentName: stu.fullName,
-          enrollmentNumber: stu.enrollmentNumber,
-          courseCode: stu.courseCode,
-          percentage: stu.percentage,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setNotification({
-          type: 'info',
-          message: `Official 75% compliance warning email dispatched to ${stu.fullName} (${stu.enrollmentNumber}).`,
-        });
-      }
-    } catch {
-      setNotification({ type: 'error', message: 'Failed to send alert email.' });
-    }
-  };
+    return (
+      <>
+        <PageHeader
+          title="Defaulters"
+          description={`Students below ${THRESHOLD}% attendance in a course, lowest first. Recorded warnings appear in the audit log.`}
+        />
+        <Panel
+          title={complianceQ.data ? plural(shown.length, 'student') : 'Students'}
+          actions={
+            courseIds.length > 1 && (
+              <select
+                value={courseFilter}
+                onChange={(e) => setCourseFilter(e.target.value)}
+                aria-label="Filter by course"
+                className={cn(control, 'w-auto')}
+              >
+                <option value="ALL">All courses</option>
+                {courseIds.map((id) => (
+                  <option key={id} value={id}>
+                    {courseName(id)}
+                  </option>
+                ))}
+              </select>
+            )
+          }
+        >
+          {!complianceQ.data ? (
+            <LoadState error={complianceQ.error} onRetry={complianceQ.reload} />
+          ) : shown.length === 0 ? (
+            <EmptyState
+              title={`No students below ${THRESHOLD}%`}
+              description="Everyone with recorded attendance meets the requirement."
+            />
+          ) : (
+            <Table>
+              <thead>
+                <tr>
+                  <th className={th}>Student</th>
+                  <th className={th}>Course</th>
+                  <th className={cn(th, 'text-right')}>Attended</th>
+                  <th className={th}>Attendance</th>
+                  <th className={th}>To recover</th>
+                  <th className={th}>
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {shown.map((student) => {
+                  const key = `${student.courseId}:${student.studentId}`;
+                  return (
+                    <tr key={key}>
+                      <td className={cn(td, 'whitespace-nowrap')}>
+                        <Person name={student.fullName} detail={student.enrollmentNumber} />
+                      </td>
+                      <td className={cn(td, 'whitespace-nowrap')}>{student.courseCode}</td>
+                      <td className={cn(td, 'text-right whitespace-nowrap tabular-nums')}>
+                        {student.attendedLectures} of {student.totalLectures}
+                      </td>
+                      <td className={td}>
+                        <AttendanceValue value={student.percentage} />
+                      </td>
+                      <td className={cn(td, 'whitespace-nowrap text-slate-600')}>
+                        {plural(student.neededFor75, 'consecutive lecture')}
+                      </td>
+                      <td className={cn(td, 'text-right')}>
+                        {warned.has(key) ? (
+                          <span className="text-sm whitespace-nowrap text-slate-500">Warning recorded</span>
+                        ) : (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            loading={warningKey === key}
+                            disabled={warningKey !== null}
+                            onClick={() => recordWarning(key, student)}
+                          >
+                            Record warning
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </Table>
+          )}
+        </Panel>
+      </>
+    );
+  }
 
-  const pendingLeaves = leaves.filter((l) => l.status === 'PENDING');
+  // Default view: department overview.
+  const all = complianceQ.data?.flatMap((r) => r.stats) ?? [];
+  const tracked = new Set(all.map((s) => s.studentId));
+  const below = new Set(all.filter((s) => s.isDefaulter).map((s) => s.studentId));
+  const ready = !!complianceQ.data;
 
   return (
-    <div className="space-y-6">
-      {/* Top HOD Summary Banner */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-1">
-            <span>Department Scope</span>
-            <ShieldCheck className="w-4 h-4 text-amber-600" />
-          </div>
-          <div className="text-base font-bold text-slate-900">Computer Science & Engg</div>
-          <div className="text-xs text-slate-500 mt-1 font-medium">HOD: Dr. Sunita Rao</div>
-        </div>
-
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-1">
-            <span>Overall Compliance</span>
-            <TrendingUp className="w-4 h-4 text-emerald-600" />
-          </div>
-          <div className="text-2xl font-bold text-emerald-700">{complianceRate}%</div>
-          <div className="text-xs text-slate-500 mt-1 font-medium">Students meeting 75% mark</div>
-        </div>
-
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-1">
-            <span>Defaulters List (&lt;75%)</span>
-            <AlertTriangle className="w-4 h-4 text-rose-600" />
-          </div>
-          <div className="text-2xl font-bold text-rose-600">{defaulters.length} Defaulters</div>
-          <div className="text-xs text-rose-700/80 mt-1 font-medium">Requires immediate intervention</div>
-        </div>
-
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-1">
-            <span>Pending Leave Requests</span>
-            <Clock className="w-4 h-4 text-amber-600" />
-          </div>
-          <div className="text-2xl font-bold text-amber-700">{pendingLeaves.length} Requests</div>
-          <div className="text-xs text-slate-500 mt-1 font-medium">Awaiting approval</div>
-        </div>
-      </div>
-
-      {notification && (
-        <div
-          className={`p-3.5 rounded-2xl border text-xs flex items-center justify-between ${
-            notification.type === 'success'
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-              : notification.type === 'error'
-              ? 'bg-rose-50 border-rose-200 text-rose-800'
-              : 'bg-indigo-50 border-indigo-200 text-indigo-800'
-          }`}
-        >
-          <div className="flex items-center gap-2 font-medium">
-            <Sparkles className="w-4 h-4 shrink-0" />
-            <span>{notification.message}</span>
-          </div>
-          <button
-            onClick={() => setNotification(null)}
-            className="text-slate-400 hover:text-slate-700 font-bold"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      {/* Overview Tab: Department Health Barometer */}
-      {activeTab === 'hod-overview' && (
-        <div className="space-y-6">
-          <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">Course Submission & Health Status</h3>
-                <p className="text-xs text-slate-500">Computer Science Department • Trimester 2</p>
-              </div>
-              {onOpenUniversityReport && (
-                <button
-                  onClick={() => onOpenUniversityReport('course-ds', 'sec-ds-a')}
-                  className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm"
-                >
-                  <Award className="w-3.5 h-3.5" /> Official University Submission
-                </button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <span className="text-[10px] uppercase font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
-                  CS-301
-                </span>
-                <div className="text-sm font-bold text-slate-900 mt-2">Data Structures & Algo</div>
-                <div className="text-xs text-slate-500 mt-0.5 font-medium">Faculty: Prof. Rajesh Sharma</div>
-                <div className="mt-3 flex justify-between text-xs text-slate-700 font-medium">
-                  <span>Attendance:</span>
-                  <span className="font-bold text-emerald-700">82.4%</span>
-                </div>
-                <div className="text-[11px] text-slate-500 mt-1">24 of 25 lectures locked</div>
-              </div>
-
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <span className="text-[10px] uppercase font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
-                  CS-302
-                </span>
-                <div className="text-sm font-bold text-slate-900 mt-2">Database Management Systems</div>
-                <div className="text-xs text-slate-500 mt-0.5 font-medium">Faculty: Dr. Anita Desai</div>
-                <div className="mt-3 flex justify-between text-xs text-slate-700 font-medium">
-                  <span>Attendance:</span>
-                  <span className="font-bold text-emerald-700">79.1%</span>
-                </div>
-                <div className="text-[11px] text-slate-500 mt-1">20 of 20 lectures locked</div>
-              </div>
-
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <span className="text-[10px] uppercase font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
-                  CS-303
-                </span>
-                <div className="text-sm font-bold text-slate-900 mt-2">Operating Systems Architecture</div>
-                <div className="text-xs text-slate-500 mt-0.5 font-medium">Faculty: Prof. K. R. Mehra</div>
-                <div className="mt-3 flex justify-between text-xs text-slate-700 font-medium">
-                  <span>Attendance:</span>
-                  <span className="font-bold text-emerald-700">85.0%</span>
-                </div>
-                <div className="text-[11px] text-slate-500 mt-1">18 of 18 lectures locked</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Leave Approvals Tab */}
-      {activeTab === 'hod-leaves' && (
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-amber-600" />
-                Student Leave Approvals & Automatic Attendance Excuse
-              </h3>
-              <p className="text-xs text-slate-500">
-                Approving a leave automatically marks the student as Excused for overlapping lectures
-                and logs to the audit trail.
-              </p>
-            </div>
-            <span className="text-xs px-2.5 py-1 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 font-bold">
-              {pendingLeaves.length} Pending Actions
-            </span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
-                <tr>
-                  <th className="py-3 px-4">Student</th>
-                  <th className="py-3 px-4">Roll Number</th>
-                  <th className="py-3 px-4">Leave Type</th>
-                  <th className="py-3 px-4">Duration</th>
-                  <th className="py-3 px-4">Reason & Document</th>
-                  <th className="py-3 px-4">Current Status</th>
-                  <th className="py-3 px-4 text-center">HOD Decision</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-medium">
-                {leaves.map((l) => (
-                  <tr key={l.id} className="hover:bg-slate-50/80">
-                    <td className="py-3 px-4 text-slate-900 font-bold">{l.studentName}</td>
-                    <td className="py-3 px-4 font-mono font-bold text-slate-700">{l.enrollmentNumber}</td>
-                    <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-indigo-700 border border-slate-200">
-                        {l.leaveType}
-                      </span>
+    <>
+      <PageHeader title="Department overview" description={description || undefined} />
+      <Stats
+        items={[
+          {
+            label: 'Course sections',
+            value: sections.length,
+            detail: ready ? `${plural(tracked.size, 'student')} with recorded attendance` : undefined,
+          },
+          {
+            label: `Meeting ${THRESHOLD}% in every course`,
+            value: ready ? tracked.size - below.size : '–',
+            detail:
+              ready && tracked.size
+                ? `${formatPercent(((tracked.size - below.size) / tracked.size) * 100)} of students`
+                : undefined,
+          },
+          { label: `Below ${THRESHOLD}% in a course`, value: ready ? below.size : '–', alert: below.size > 0 },
+          { label: 'Leave requests to review', value: leavesQ.data ? pending.length : '–' },
+        ]}
+      />
+      <Panel className="mt-6" title="Course sections" description="Attendance from locked sessions this term.">
+        {!complianceQ.data ? (
+          <LoadState error={complianceQ.error} onRetry={complianceQ.reload} />
+        ) : sections.length === 0 ? (
+          <EmptyState title="No course sections in this department" />
+        ) : (
+          <Table>
+            <thead>
+              <tr>
+                <th className={th}>Course</th>
+                <th className={th}>Faculty</th>
+                <th className={cn(th, 'text-right')}>Students</th>
+                <th className={cn(th, 'text-right')}>Locked sessions</th>
+                <th className={th}>Average attendance</th>
+                <th className={cn(th, 'text-right')}>Below {THRESHOLD}%</th>
+                <th className={th}>
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {sections.map((section, index) => {
+                const stats = complianceQ.data?.[index]?.stats ?? [];
+                const average = stats.length ? stats.reduce((sum, s) => sum + s.percentage, 0) / stats.length : null;
+                return (
+                  <tr key={section.id}>
+                    <td className={cn(td, 'min-w-60')}>
+                      <Person name={courseName(section.courseId)} detail={section.name} />
                     </td>
-                    <td className="py-3 px-4 font-mono text-slate-700">
-                      {l.startDate} &rarr; {l.endDate}
+                    <td className={cn(td, 'whitespace-nowrap')}>{section.facultyName}</td>
+                    <td className={cn(td, 'text-right tabular-nums')}>{section.studentCount}</td>
+                    <td className={cn(td, 'text-right tabular-nums')}>
+                      {Math.max(0, ...stats.map((s) => s.totalLectures))}
                     </td>
-                    <td className="py-3 px-4 text-slate-600 max-w-xs">
-                      <div>{l.reason}</div>
-                      {l.documentUrl && (
-                        <span className="text-[10px] text-indigo-600 font-semibold flex items-center gap-1 mt-0.5">
-                          <FileText className="w-3 h-3" /> Medical Certificate attached
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                          l.status === 'APPROVED'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : l.status === 'REJECTED'
-                            ? 'bg-rose-50 text-rose-700 border-rose-200'
-                            : 'bg-amber-50 text-amber-800 border-amber-200'
-                        }`}
-                      >
-                        {l.status}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      {l.status === 'PENDING' ? (
-                        <div className="flex items-center justify-center gap-2">
-                          <button
-                            id="btn-hod-approve-leave"
-                            disabled={isProcessing}
-                            onClick={() => handleReviewLeave(l.id, 'APPROVED')}
-                            className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] shadow-2xs flex items-center gap-1 transition-all active:scale-95"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Approve & Excuse
-                          </button>
-                          <button
-                            disabled={isProcessing}
-                            onClick={() => handleReviewLeave(l.id, 'REJECTED')}
-                            className="px-3 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-[11px] flex items-center gap-1 transition-all active:scale-95"
-                          >
-                            <XCircle className="w-3.5 h-3.5" /> Reject
-                          </button>
-                        </div>
+                    <td className={td}>
+                      {average === null ? (
+                        <span className="text-slate-400">No locked sessions</span>
                       ) : (
-                        <span className="text-slate-400 text-[11px] block text-center font-medium">
-                          Reviewed
-                        </span>
+                        <AttendanceValue value={average} />
                       )}
                     </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Defaulter Action Desk Tab */}
-      {activeTab === 'hod-defaulters' && (
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-rose-600" />
-                Defaulter Action Desk (&lt;75% Attendance Compliance)
-              </h3>
-              <p className="text-xs text-slate-500">
-                Students below the minimum institutional threshold. HOD can dispatch warning notifications.
-              </p>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
-                <tr>
-                  <th className="py-3 px-4">Roll Number</th>
-                  <th className="py-3 px-4">Student Name</th>
-                  <th className="py-3 px-4">Course</th>
-                  <th className="py-3 px-4">Attended / Total</th>
-                  <th className="py-3 px-4">Percentage</th>
-                  <th className="py-3 px-4">Recovery Requirement</th>
-                  <th className="py-3 px-4 text-center">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-medium">
-                {defaulters.map((stu) => (
-                  <tr key={stu.studentId} className="hover:bg-slate-50/80 bg-rose-50/20">
-                    <td className="py-3 px-4 font-mono font-bold text-slate-800">
-                      {stu.enrollmentNumber}
+                    <td className={cn(td, 'text-right tabular-nums')}>
+                      {complianceQ.data?.[index]?.defaulterCount ?? 0}
                     </td>
-                    <td className="py-3 px-4 text-slate-900 font-bold">{stu.fullName}</td>
-                    <td className="py-3 px-4 text-indigo-700 font-semibold">{stu.courseCode}</td>
-                    <td className="py-3 px-4 text-slate-600 font-medium">
-                      {stu.attendedLectures} / {stu.totalLectures}
-                    </td>
-                    <td className="py-3 px-4 font-bold text-rose-600 text-sm">
-                      {stu.percentage}%
-                    </td>
-                    <td className="py-3 px-4 text-amber-800 font-bold text-xs">
-                      Must attend next {stu.neededFor75} lectures
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <button
-                        onClick={() => handleSendWarningEmail(stu)}
-                        className="px-3 py-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] shadow-xs flex items-center gap-1.5 mx-auto active:scale-95 transition-all"
-                      >
-                        <Mail className="w-3 h-3" /> Send Warning Email
-                      </button>
+                    <td className={cn(td, 'text-right')}>
+                      <Button variant="ghost" size="sm" onClick={() => onOpenReport(section.courseId, section.id)}>
+                        <FileText aria-hidden /> Report
+                      </Button>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
+                );
+              })}
+            </tbody>
+          </Table>
+        )}
+      </Panel>
+    </>
   );
-};
+}

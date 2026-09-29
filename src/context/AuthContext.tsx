@@ -1,113 +1,63 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, UserRole } from '@/types';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import type { User } from '@/types';
+import { api } from '@/lib/client';
 
-interface AuthContextType {
+interface AuthContextValue {
   user: User | null;
-  isLoading: boolean;
-  login: (email: string, password?: string) => Promise<boolean>;
-  loginAs: (role: UserRole) => Promise<boolean>;
+  /** 'loading' only while the existing session is checked on first load. */
+  status: 'loading' | 'ready';
+  /** Throws with the server's message when the credentials are rejected. */
+  login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  refreshUser: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextValue | null>(null);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-
-  const fetchSession = async () => {
-    try {
-      const res = await fetch('/api/auth/me');
-      if (res.ok) {
-        const data = await res.json();
-        setUser(data.user);
-      } else {
-        setUser(null);
-      }
-    } catch {
-      setUser(null);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const [status, setStatus] = useState<'loading' | 'ready'>('loading');
 
   useEffect(() => {
-    fetchSession();
+    let active = true;
+    api
+      .get<{ user: User }>('/api/auth/me')
+      .then(
+        (data) => data.user,
+        () => null
+      )
+      .then((sessionUser) => {
+        if (!active) return;
+        setUser(sessionUser);
+        setStatus('ready');
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const login = async (email: string, password?: string): Promise<boolean> => {
-    setIsLoading(true);
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-      if (res.ok && data.user) {
-        setUser(data.user);
-        return true;
-      }
-      throw new Error(data.error || 'Login failed');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const login = useCallback(async (email: string, password: string) => {
+    const data = await api.post<{ user: User }>('/api/auth/login', { email, password });
+    setUser(data.user);
+  }, []);
 
-  const loginAs = async (role: UserRole): Promise<boolean> => {
-    setIsLoading(true);
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ssoRole: role }),
-      });
-      const data = await res.json();
-      if (res.ok && data.user) {
-        setUser(data.user);
-        return true;
-      }
-      throw new Error(data.error || 'Login failed');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const logout = useCallback(async () => {
+    await api.post('/api/auth/logout').catch(() => undefined);
+    setUser(null);
+    // Views are role-specific; don't carry one over to the next account.
+    window.history.replaceState(null, '', window.location.pathname);
+  }, []);
 
-  const logout = async () => {
-    setIsLoading(true);
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' });
-      setUser(null);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const value = useMemo(() => ({ user, status, login, logout }), [user, status, login, logout]);
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isLoading,
-        login,
-        loginAs,
-        logout,
-        refreshUser: fetchSession,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
-};
+  return <AuthContext value={value}>{children}</AuthContext>;
+}
 
-export const useAuth = () => {
+export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-};
+}

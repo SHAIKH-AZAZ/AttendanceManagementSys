@@ -12,6 +12,7 @@ import {
   SystemAuditLog,
   ComplianceThreshold,
   StudentComplianceStats,
+  StudentSummary,
   EnrolledStudent,
 } from '@/types';
 import {
@@ -45,7 +46,6 @@ class DatabaseState {
 
 // Global persistence across Next.js dev server hot-reloads
 declare global {
-  // eslint-disable-next-line no-var
   var __attendease_db_state: DatabaseState | undefined;
 }
 
@@ -55,6 +55,26 @@ const state: DatabaseState =
 if (!global.__attendease_db_state) {
   global.__attendease_db_state = state;
 }
+
+const MIN_PERCENTAGE = 75;
+
+// Consecutive attended lectures needed to reach the minimum:
+// (attended + x) / (total + x) >= 0.75  =>  x >= (0.75 * total - attended) / 0.25
+function lecturesNeeded(attended: number, total: number): number {
+  const ratio = MIN_PERCENTAGE / 100;
+  if (total === 0 || attended / total >= ratio) return 0;
+  return Math.max(1, Math.ceil((ratio * total - attended) / (1 - ratio)));
+}
+
+/** Strips credentials before a user record leaves the server. */
+export function publicUser(user: User): Omit<User, 'password'> {
+  const safe = { ...user };
+  delete safe.password;
+  return safe;
+}
+
+const userName = (id: string, fallback: string) =>
+  state.users.find((u) => u.id === id)?.fullName ?? fallback;
 
 export const dbService = {
   // --- Metas ---
@@ -114,8 +134,7 @@ export const dbService = {
       throw new Error('This user account has been deactivated. Please contact your administrator.');
     }
 
-    // Check password if set on user
-    if (user.password && password && user.password !== password) {
+    if (!password || user.password !== password) {
       throw new Error('Invalid email or password.');
     }
 
@@ -333,7 +352,7 @@ export const dbService = {
     // Log to system audit
     this.addSystemAudit({
       userId: facultyId,
-      userName: 'Faculty Submitter',
+      userName: userName(facultyId, 'Faculty'),
       action: 'ATTENDANCE_SUBMITTED_AND_LOCKED',
       entityName: 'LectureSession',
       entityId: sessionId,
@@ -472,7 +491,7 @@ export const dbService = {
               newStatus: targetStatus,
               reason: `Automated leave integration #${leave.id} (${leave.leaveType})`,
               changedBy: hodUserId,
-              changedByName: 'HOD Department Approver',
+              changedByName: userName(hodUserId, 'Head of Department'),
               createdAt: new Date().toISOString(),
             });
           }
@@ -482,7 +501,7 @@ export const dbService = {
 
     this.addSystemAudit({
       userId: hodUserId,
-      userName: 'HOD Reviewer',
+      userName: userName(hodUserId, 'Head of Department'),
       action: `LEAVE_${status}`,
       entityName: 'LeaveApplication',
       entityId: leave.id,
@@ -498,43 +517,30 @@ export const dbService = {
       (s) => s.courseId === courseId && s.sectionId === sectionId && s.isLocked
     );
 
-    const totalLectures = lockedSessions.length;
-    if (totalLectures === 0) return [];
+    if (lockedSessions.length === 0) return [];
 
     const course = state.courses.find((c) => c.id === courseId);
     const section = state.sections.find((s) => s.id === sectionId);
     const students = section?.enrolledStudents || ROSTER_STUDENTS;
 
-    const stats: StudentComplianceStats[] = students.map((stu) => {
+    const stats: StudentComplianceStats[] = students.flatMap((stu) => {
       let attended = 0;
+      let totalLectures = 0;
 
       lockedSessions.forEach((sess) => {
         const r = sess.records.find((rec) => rec.studentId === stu.studentId);
-        if (r) {
-          if (
-            r.status === 'PRESENT' ||
-            r.status === 'LATE' ||
-            r.status === 'EXCUSED' ||
-            r.status === 'MEDICAL_LEAVE' ||
-            r.status === 'ON_DUTY'
-          ) {
-            attended++;
-          }
-        }
+        // No record: the student wasn't enrolled yet when this session was taken.
+        if (!r) return;
+        totalLectures++;
+        // Late, excused, medical leave and on duty all count as attended.
+        if (r.status !== 'ABSENT') attended++;
       });
 
-      const percentage = Number(((attended / totalLectures) * 100).toFixed(1));
-      const isDefaulter = percentage < 75.0;
+      if (totalLectures === 0) return [];
 
-      // Calculate how many consecutive attendances needed to reach 75%
-      // (attended + x) / (totalLectures + x) >= 0.75 => x >= (0.75 * total - attended) / 0.25
-      let neededFor75 = 0;
-      if (isDefaulter) {
-        neededFor75 = Math.max(
-          1,
-          Math.ceil((0.75 * totalLectures - attended) / 0.25)
-        );
-      }
+      const percentage = Number(((attended / totalLectures) * 100).toFixed(1));
+      const isDefaulter = percentage < MIN_PERCENTAGE;
+      const neededFor75 = lecturesNeeded(attended, totalLectures);
 
       return {
         studentId: stu.studentId,
@@ -554,7 +560,7 @@ export const dbService = {
     return stats.sort((a, b) => a.percentage - b.percentage);
   },
 
-  async getStudentPersonalSummary(studentId: string) {
+  async getStudentPersonalSummary(studentId: string): Promise<StudentSummary> {
     const enrolledSessions = state.sessions.filter(
       (s) => s.isLocked && s.records.some((r) => r.studentId === studentId)
     );
@@ -601,15 +607,19 @@ export const dbService = {
     const overallPercentage =
       total > 0 ? Number((((present + late + excused) / total) * 100).toFixed(1)) : 100;
 
-    const courses = Array.from(courseBreakdownMap.entries()).map(([courseId, val]) => ({
-      courseId,
-      code: val.code,
-      title: val.title,
-      total: val.total,
-      attended: val.attended,
-      percentage: Number(((val.attended / val.total) * 100).toFixed(1)),
-      isDefaulter: Number(((val.attended / val.total) * 100).toFixed(1)) < 75.0,
-    }));
+    const courses = Array.from(courseBreakdownMap.entries()).map(([courseId, val]) => {
+      const percentage = Number(((val.attended / val.total) * 100).toFixed(1));
+      return {
+        courseId,
+        code: val.code,
+        title: val.title,
+        total: val.total,
+        attended: val.attended,
+        percentage,
+        isDefaulter: percentage < MIN_PERCENTAGE,
+        neededFor75: lecturesNeeded(val.attended, val.total),
+      };
+    });
 
     return {
       totalSessions: total,
@@ -618,7 +628,7 @@ export const dbService = {
       lateCount: late,
       excusedCount: excused,
       overallPercentage,
-      isCompliant: overallPercentage >= 75.0,
+      isCompliant: overallPercentage >= MIN_PERCENTAGE,
       courses,
     };
   },
@@ -698,7 +708,7 @@ export const dbService = {
 
   addSystemAudit(entry: Omit<SystemAuditLog, 'id' | 'timestamp'>) {
     const log: SystemAuditLog = {
-      id: `audit-log-${Date.now()}`,
+      id: `audit-log-${crypto.randomUUID()}`,
       ...entry,
       timestamp: new Date().toISOString(),
     };

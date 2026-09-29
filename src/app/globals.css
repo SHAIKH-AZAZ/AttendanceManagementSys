@@ -1,18 +1,70 @@
 @import "tailwindcss";
 
-:root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+/* Institutional navy: the only accent color. Status colors come from Tailwind's green/amber/red/sky. */
+@theme {
+  --color-brand-50: #f1f5fb;
+  --color-brand-100: #e1e9f5;
+  --color-brand-200: #c3d3ea;
+  --color-brand-300: #9bb4d9;
+  --color-brand-500: #4a6fa8;
+  --color-brand-600: #2f5490;
+  --color-brand-700: #1f3a68;
+  --color-brand-800: #182e52;
+  --color-brand-900: #11203a;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-public-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-source-serif), ui-serif, Georgia, serif;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
+@layer base {
+  :root {
+    color-scheme: light;
+    scrollbar-gutter: stable;
+  }
+
+  /* Keep the page still behind an open modal dialog. */
+  :root:has(dialog[open]) {
+    overflow: hidden;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}
+
+/* Printing: only the element marked .print-only (the attendance report) reaches paper. */
+.print-only {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 14mm;
+  }
+
+  body {
+    background: white;
+  }
+
+  body > :not(.print-only) {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block;
+  }
 }

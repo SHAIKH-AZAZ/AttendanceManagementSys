@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { dbService } from '@/lib/db-service';
+import { dbService, publicUser } from '@/lib/db-service';
 import { UserRole } from '@/types';
 
 export async function GET(request: Request) {
@@ -33,7 +33,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       total: users.length,
-      users,
+      users: users.map(publicUser),
     });
   } catch (error) {
     return NextResponse.json(
@@ -60,7 +60,16 @@ export async function POST(request: Request) {
 
     if (!email || !fullName || !role) {
       return NextResponse.json(
-        { error: 'Email, Full Name, and Role are required.' },
+        { error: 'Email, full name and role are required.' },
+        { status: 400 }
+      );
+    }
+    if (!['STUDENT', 'FACULTY', 'HOD', 'ADMIN_STAFF'].includes(role)) {
+      return NextResponse.json({ error: 'Unknown role.' }, { status: 400 });
+    }
+    if (typeof password !== 'string' || password.length < 8) {
+      return NextResponse.json(
+        { error: 'The initial password must be at least 8 characters.' },
         { status: 400 }
       );
     }
@@ -70,8 +79,8 @@ export async function POST(request: Request) {
       fullName,
       role,
       campusId: campusId || 'campus-1',
-      departmentId: departmentId || 'dept-cs',
-      password: password || 'welcome123',
+      departmentId: role === 'ADMIN_STAFF' ? undefined : departmentId || 'dept-cs',
+      password,
       employeeCode,
       enrollmentNumber,
       academicYear,
@@ -80,7 +89,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         message: 'User created successfully.',
-        user: newUser,
+        user: publicUser(newUser),
       },
       { status: 201 }
     );

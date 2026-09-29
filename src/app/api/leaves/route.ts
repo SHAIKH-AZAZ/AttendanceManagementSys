@@ -45,6 +45,15 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+    if (!['CASUAL', 'MEDICAL', 'ON_DUTY', 'BEREAVEMENT'].includes(leaveType)) {
+      return NextResponse.json({ error: 'Unknown leave type.' }, { status: 400 });
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate) || endDate < startDate) {
+      return NextResponse.json(
+        { error: 'The end date must be on or after the start date.' },
+        { status: 400 }
+      );
+    }
 
     const leave = await dbService.submitLeave({
       studentId,
@@ -56,7 +65,7 @@ export async function POST(request: Request) {
       startDate,
       endDate,
       reason,
-      documentUrl: documentUrl || '/documents/sample_leave_proof.pdf',
+      documentUrl: documentUrl || undefined,
     });
 
     return NextResponse.json({ leave }, { status: 201 });

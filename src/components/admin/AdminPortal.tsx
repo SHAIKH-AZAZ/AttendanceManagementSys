@@ -1,539 +1,452 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
+import { Download, FileText, Search, Upload } from 'lucide-react';
+import type { AcademicMeta, ImportPreview, SystemAuditLog } from '@/types';
+import { api, formatDate, formatDateTime, humanize, plural, sectionLabel, useApi } from '@/lib/client';
 import {
-  SystemAuditLog,
-} from '@/types';
-import {
-  Building2,
-  Layers,
-  BookOpen,
-  Upload,
-  FileSpreadsheet,
-  CheckCircle2,
-  AlertTriangle,
-  XCircle,
-  History,
-  Sparkles,
-  ExternalLink,
-  Award,
-} from 'lucide-react';
+  Badge,
+  Button,
+  EmptyState,
+  Field,
+  LoadState,
+  Notice,
+  PageHeader,
+  Panel,
+  Person,
+  Stats,
+  Table,
+  buttonClass,
+  cn,
+  control,
+  td,
+  textareaClass,
+  th,
+  useToast,
+} from '@/components/ui';
 import { UserManagementTab } from './UserManagementTab';
 
-interface AdminPortalProps {
-  activeTab: string;
-  onOpenUniversityReport?: (courseId: string, sectionId: string) => void;
+const ROSTER_TEMPLATE = 'enrollment_number,full_name,email\nCS-2026-101,Harshit Mehta,harshit.mehta@univ.edu\n';
+
+type RosterRow = { enrollmentNumber: string; fullName: string; email: string };
+
+/** Parses "enrollment number, full name, email" lines; skips blank lines and a header row. */
+function parseRoster(text: string): RosterRow[] {
+  // ponytail: plain comma split; quoted fields that contain commas need a real CSV parser.
+  const rows = text
+    .split(/\r?\n/)
+    .filter((line) => line.trim())
+    .map((line) => line.split(',').map((cell) => cell.trim().replace(/^"(.*)"$/, '$1')));
+  if (rows[0] && /enrol|roll/i.test(rows[0][0])) rows.shift();
+  return rows.map(([enrollmentNumber = '', fullName = '', email = '']) => ({ enrollmentNumber, fullName, email }));
 }
 
-export const AdminPortal: React.FC<AdminPortalProps> = ({
-  activeTab,
-  onOpenUniversityReport,
-}) => {
-  const [auditLogs, setAuditLogs] = useState<SystemAuditLog[]>([]);
-  const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+interface AdminPortalProps {
+  meta: AcademicMeta;
+  reloadMeta: () => void;
+  view: string;
+  onOpenReport: (courseId: string, sectionId: string) => void;
+}
 
-  // Bulk Import state
-  const [importSectionId, setImportSectionId] = useState('sec-ds-a');
-  const [importText, setImportText] = useState('');
-  const [previewResult, setPreviewResult] = useState<any | null>(null);
-  const [isImporting, setIsImporting] = useState(false);
+export function AdminPortal({ meta, reloadMeta, view, onOpenReport }: AdminPortalProps) {
+  if (view === 'import') return <RosterImport meta={meta} onImported={reloadMeta} />;
+  if (view === 'reports') return <Reports meta={meta} onOpenReport={onOpenReport} />;
+  if (view === 'users') return <UserManagementTab meta={meta} />;
+  if (view === 'audit') return <AuditLog />;
+  return <AcademicStructure meta={meta} />;
+}
 
-  const fetchMetas = async () => {
-    try {
-      const logsRes = await fetch('/api/audit-logs');
-      const logsJson = await logsRes.json();
-      if (logsJson.logs) setAuditLogs(logsJson.logs);
-    } catch (err) {
-      console.error('Error fetching admin data:', err);
-    }
-  };
-
-  useEffect(() => {
-    fetchMetas();
-  }, []);
-
-  const handleLoadSampleCSV = () => {
-    const sample = `CS-2026-101, Harshit Mehta, harshit.m@univ.edu
-CS-2026-102, Riya Kapoor, riya.k@univ.edu
-CS-2026-001, Duplicate Aarav, aarav.dupe@univ.edu
-, Missing Roll Student, invalid@univ.edu
-CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
-    setImportText(sample);
-    setPreviewResult(null);
-  };
-
-  const handleValidateCSV = async () => {
-    if (!importText.trim()) return;
-
-    const lines = importText.trim().split('\n');
-    const parsedStudents = lines.map((line) => {
-      const parts = line.split(',').map((p) => p.trim());
-      return {
-        enrollmentNumber: parts[0] || '',
-        fullName: parts[1] || '',
-        email: parts[2] || '',
-      };
-    });
-
-    setIsImporting(true);
-    try {
-      const res = await fetch('/api/admin/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sectionId: importSectionId,
-          students: parsedStudents,
-          isPreviewOnly: true,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setPreviewResult(data);
-        setNotification({
-          type: 'info',
-          message: `Validation complete: ${data.validCount} valid, ${data.duplicateCount} duplicates, ${data.invalidCount} invalid rows.`,
-        });
-      } else {
-        setNotification({ type: 'error', message: data.error || 'Validation failed.' });
-      }
-    } catch {
-      setNotification({ type: 'error', message: 'Error validating roster.' });
-    } finally {
-      setIsImporting(false);
-    }
-  };
-
-  const handleCommitImport = async () => {
-    if (!previewResult || previewResult.validCount === 0) return;
-
-    setIsImporting(true);
-    try {
-      const lines = importText.trim().split('\n');
-      const parsedStudents = lines.map((line) => {
-        const parts = line.split(',').map((p) => p.trim());
-        return {
-          enrollmentNumber: parts[0] || '',
-          fullName: parts[1] || '',
-          email: parts[2] || '',
-        };
-      });
-
-      const res = await fetch('/api/admin/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sectionId: importSectionId,
-          students: parsedStudents,
-          isPreviewOnly: false,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setNotification({
-          type: 'success',
-          message: data.message || 'Roster committed successfully into section.',
-        });
-        setImportText('');
-        setPreviewResult(null);
-        fetchMetas();
-      } else {
-        setNotification({ type: 'error', message: data.error || 'Import failed.' });
-      }
-    } catch {
-      setNotification({ type: 'error', message: 'Network error committing import.' });
-    } finally {
-      setIsImporting(false);
-    }
-  };
-
+function AcademicStructure({ meta }: { meta: AcademicMeta }) {
+  const activeTerm = meta.trimesters.find((t) => t.status === 'ACTIVE');
   return (
-    <div className="space-y-6">
-      {/* Top Banner */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-1">
-            <span>Configured Campuses</span>
-            <Building2 className="w-4 h-4 text-purple-600" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900">3 Campuses</div>
-          <div className="text-xs text-slate-500 mt-1 font-medium">North, South, City</div>
-        </div>
+    <>
+      <PageHeader
+        title="Academic structure"
+        description="Campuses, departments and the course sections running this term. Records are kept separate per department."
+      />
+      <Stats
+        items={[
+          { label: 'Campuses', value: meta.campuses.length },
+          { label: 'Departments', value: meta.departments.length },
+          { label: 'Courses', value: meta.courses.length },
+          {
+            label: 'Course sections',
+            value: meta.sections.length,
+            detail: activeTerm ? `Current term: ${activeTerm.name}` : undefined,
+          },
+        ]}
+      />
 
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-1">
-            <span>Departments</span>
-            <Layers className="w-4 h-4 text-purple-600" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900">4 Departments</div>
-          <div className="text-xs text-slate-500 mt-1 font-medium">Data-isolated tenants</div>
-        </div>
-
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-1">
-            <span>Active Term</span>
-            <BookOpen className="w-4 h-4 text-indigo-600" />
-          </div>
-          <div className="text-base font-bold text-slate-900">Trimester 2 (2026-27)</div>
-          <div className="text-xs text-emerald-600 mt-1 font-bold">● Active Session</div>
-        </div>
-
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-1">
-            <span>Audit Trail Entries</span>
-            <History className="w-4 h-4 text-amber-600" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900">{auditLogs.length} Events</div>
-          <div className="text-xs text-slate-500 mt-1 font-medium">System-wide immutable log</div>
-        </div>
+      <div className="mt-6 grid gap-6 lg:grid-cols-3">
+        {meta.campuses.map((campus) => {
+          const departments = meta.departments.filter((d) => d.campusId === campus.id);
+          return (
+            <Panel key={campus.id} title={campus.name} description={campus.address}>
+              {departments.length === 0 ? (
+                <EmptyState title="No departments on this campus" />
+              ) : (
+                <ul className="divide-y divide-slate-100">
+                  {departments.map((d) => {
+                    const courses = meta.courses.filter((c) => c.departmentId === d.id).length;
+                    const sections = meta.sections.filter((s) => s.departmentId === d.id).length;
+                    return (
+                      <li key={d.id} className="flex items-start justify-between gap-3 px-5 py-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-900">{d.name}</p>
+                          <p className="text-xs text-slate-500">
+                            {d.code}, {plural(courses, 'course')}, {plural(sections, 'section')}
+                          </p>
+                        </div>
+                        <Badge tone={d.isActive ? 'success' : 'neutral'}>{d.isActive ? 'Active' : 'Inactive'}</Badge>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </Panel>
+          );
+        })}
       </div>
 
-      {notification && (
-        <div
-          className={`p-3.5 rounded-2xl border text-xs flex items-center justify-between ${
-            notification.type === 'success'
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-              : notification.type === 'error'
-              ? 'bg-rose-50 border-rose-200 text-rose-800'
-              : 'bg-indigo-50 border-indigo-200 text-indigo-800'
-          }`}
-        >
-          <div className="flex items-center gap-2 font-medium">
-            <Sparkles className="w-4 h-4 shrink-0" />
-            <span>{notification.message}</span>
-          </div>
-          <button
-            onClick={() => setNotification(null)}
-            className="text-slate-400 hover:text-slate-700 font-bold"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      {/* Tab: Academic Hierarchy */}
-      {activeTab === 'admin-config' && (
-        <div className="space-y-6">
-          <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs">
-            <h3 className="text-sm font-bold text-slate-900 mb-1">Multi-Campus & Department Topology</h3>
-            <p className="text-xs text-slate-500 mb-4">
-              Strict row-level isolation guarantees that department records remain separate across campuses.
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <div className="flex items-center gap-2 text-indigo-700 text-xs font-bold">
-                  <Building2 className="w-4 h-4" /> Campus 1: North Campus
-                </div>
-                <div className="mt-2 space-y-1.5 text-xs text-slate-700 font-medium">
-                  <div className="p-2 rounded bg-white border border-slate-200/80 flex justify-between shadow-2xs">
-                    <span>CSE (Computer Science)</span>
-                    <span className="text-emerald-700 font-bold">Active</span>
-                  </div>
-                  <div className="p-2 rounded bg-white border border-slate-200/80 flex justify-between shadow-2xs">
-                    <span>IT (Information Tech)</span>
-                    <span className="text-emerald-700 font-bold">Active</span>
-                  </div>
-                  <div className="p-2 rounded bg-white border border-slate-200/80 flex justify-between shadow-2xs">
-                    <span>ECE (Electronics & Comm)</span>
-                    <span className="text-emerald-700 font-bold">Active</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <div className="flex items-center gap-2 text-indigo-700 text-xs font-bold">
-                  <Building2 className="w-4 h-4" /> Campus 2: South Campus
-                </div>
-                <div className="mt-2 space-y-1.5 text-xs text-slate-700 font-medium">
-                  <div className="p-2 rounded bg-white border border-slate-200/80 flex justify-between shadow-2xs">
-                    <span>CIVIL (Civil Engineering)</span>
-                    <span className="text-emerald-700 font-bold">Active</span>
-                  </div>
-                  <div className="p-2 rounded bg-white border border-slate-200/80 flex justify-between shadow-2xs">
-                    <span>CSE (Computer Science)</span>
-                    <span className="text-emerald-700 font-bold">Active</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <div className="flex items-center gap-2 text-indigo-700 text-xs font-bold">
-                  <Building2 className="w-4 h-4" /> Campus 3: City Campus
-                </div>
-                <div className="mt-2 space-y-1.5 text-xs text-slate-700 font-medium">
-                  <div className="p-2 rounded bg-white border border-slate-200/80 flex justify-between shadow-2xs">
-                    <span>IT (Information Tech)</span>
-                    <span className="text-emerald-700 font-bold">Active</span>
-                  </div>
-                  <div className="p-2 rounded bg-white border border-slate-200/80 flex justify-between shadow-2xs">
-                    <span>CIVIL (Civil Engineering)</span>
-                    <span className="text-emerald-700 font-bold">Active</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tab: Bulk CSV / Excel Import Engine */}
-      {activeTab === 'admin-import' && (
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-5">
-          <div>
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5 text-indigo-600" />
-              Student Roster Bulk Import & Validation Engine
-            </h3>
-            <p className="text-xs text-slate-500 mt-1">
-              Supports CSV & Excel rosters. Detects duplicate enrollment numbers, checks formatting, and
-              validates records before commit.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {/* Input & Upload */}
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Target Course & Section
-                </label>
-                <select
-                  value={importSectionId}
-                  onChange={(e) => setImportSectionId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="sec-ds-a">Data Structures (CS-301) - Section A</option>
-                  <option value="sec-ds-b">Data Structures (CS-301) - Section B</option>
-                  <option value="sec-dbms-a">Database Management (CS-302) - Section A</option>
-                </select>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-bold text-slate-700">
-                    Paste CSV Rows (Enrollment Number, Full Name, Email)
-                  </label>
-                  <button
-                    onClick={handleLoadSampleCSV}
-                    className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold"
-                  >
-                    Load Test CSV Sample
-                  </button>
-                </div>
-                <textarea
-                  rows={6}
-                  value={importText}
-                  onChange={(e) => setImportText(e.target.value)}
-                  placeholder={`CS-2026-101, Harshit Mehta, harshit.m@univ.edu\nCS-2026-102, Riya Kapoor, riya.k@univ.edu\nCS-2026-001, Duplicate Student, ...`}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs font-mono text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  id="btn-validate-csv"
-                  onClick={handleValidateCSV}
-                  disabled={isImporting || !importText.trim()}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold text-xs flex items-center gap-1.5 transition-all shadow-2xs"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
-                  Validate & Preview
-                </button>
-                {previewResult && previewResult.validCount > 0 && (
-                  <button
-                    id="btn-commit-import"
-                    onClick={handleCommitImport}
-                    disabled={isImporting}
-                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all"
-                  >
-                    <Upload className="w-3.5 h-3.5" /> Commit {previewResult.validCount} Valid Records
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Validation Feedback & Preview */}
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col justify-between">
-              <div>
-                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                  Validation Preview Matrix
-                </h4>
-
-                {previewResult ? (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                      <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
-                        <div className="text-[10px] text-slate-500 font-semibold">Total Rows</div>
-                        <div className="text-base font-bold text-slate-900">
-                          {previewResult.totalRecords}
-                        </div>
-                      </div>
-                      <div className="bg-emerald-50/70 p-2.5 rounded-lg border border-emerald-200 shadow-2xs">
-                        <div className="text-[10px] text-emerald-800 font-semibold">Valid</div>
-                        <div className="text-base font-bold text-emerald-700">
-                          {previewResult.validCount}
-                        </div>
-                      </div>
-                      <div className="bg-rose-50/70 p-2.5 rounded-lg border border-rose-200 shadow-2xs">
-                        <div className="text-[10px] text-rose-800 font-semibold">Errors & Dupes</div>
-                        <div className="text-base font-bold text-rose-700">
-                          {previewResult.duplicateCount + previewResult.invalidCount}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Detected duplicates */}
-                    {previewResult.duplicates.length > 0 && (
-                      <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs">
-                        <div className="text-amber-800 font-bold flex items-center gap-1 text-[11px]">
-                          <AlertTriangle className="w-3 h-3 text-amber-600" /> Duplicate Enrollment Numbers Found:
-                        </div>
-                        <ul className="text-slate-700 mt-1 space-y-0.5 text-[11px] font-medium">
-                          {previewResult.duplicates.map((d: any, idx: number) => (
-                            <li key={idx}>
-                              Row {d.row}: <strong className="font-mono text-slate-900">{d.enrollmentNumber}</strong> - {d.reason}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {/* Detected invalid format */}
-                    {previewResult.invalidRecords.length > 0 && (
-                      <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs">
-                        <div className="text-rose-800 font-bold flex items-center gap-1 text-[11px]">
-                          <XCircle className="w-3 h-3 text-rose-600" /> Missing Fields or Format Errors:
-                        </div>
-                        <ul className="text-slate-700 mt-1 space-y-0.5 text-[11px] font-medium">
-                          {previewResult.invalidRecords.map((inv: any, idx: number) => (
-                            <li key={idx}>
-                              Row {inv.row}: {inv.reason}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-center py-10 text-xs text-slate-500 font-medium">
-                    <FileSpreadsheet className="w-8 h-8 mx-auto mb-2 text-slate-400" />
-                    Enter CSV rows and click &quot;Validate & Preview&quot; to inspect errors before
-                    saving.
-                  </div>
-                )}
-              </div>
-
-              <div className="text-[10px] text-slate-500 pt-3 border-t border-slate-200 font-medium">
-                Rule 7 Compliance: No duplicate enrollment numbers allowed within the same section.
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tab: University Reports */}
-      {activeTab === 'admin-reports' && (
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Award className="w-5 h-5 text-indigo-600" />
-                Official University & Examination Board Reports
-              </h3>
-              <p className="text-xs text-slate-500">
-                Institutional attendance reports with university headers, student rosters, compliance stats,
-                and formal signature blocks.
-              </p>
-            </div>
-            {onOpenUniversityReport && (
-              <button
-                onClick={() => onOpenUniversityReport('course-ds', 'sec-ds-a')}
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-2 shadow-sm"
-              >
-                <Award className="w-4 h-4" /> Launch University Board Generator
-              </button>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-              <div className="text-xs font-bold text-indigo-700">Department Consolidation</div>
-              <p className="text-xs text-slate-600 mt-1">
-                Consolidated attendance across Computer Science & Engineering department (CS-301, CS-302, CS-303).
-              </p>
-              <button
-                onClick={() => onOpenUniversityReport && onOpenUniversityReport('course-ds', 'sec-ds-a')}
-                className="mt-3 text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1"
-              >
-                Preview Submission Template <ExternalLink className="w-3 h-3" />
-              </button>
-            </div>
-
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-              <div className="text-xs font-bold text-purple-700">Cross-Campus Consolidation</div>
-              <p className="text-xs text-slate-600 mt-1">
-                Authorized administrator consolidation for North Campus and South Campus.
-              </p>
-              <button
-                onClick={() => onOpenUniversityReport && onOpenUniversityReport('course-ds', 'sec-ds-a')}
-                className="mt-3 text-xs text-purple-600 hover:text-purple-800 font-bold flex items-center gap-1"
-              >
-                Generate Combined Audit PDF <ExternalLink className="w-3 h-3" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tab: System Audit Logs */}
-      {activeTab === 'admin-audit' && (
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
-          <div>
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <History className="w-5 h-5 text-amber-600" />
-              System Audit Trail & Immutability Logs
-            </h3>
-            <p className="text-xs text-slate-500">
-              Append-only tamper-evident event log recording logins, attendance submissions, leave actions,
-              and configuration updates.
-            </p>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
-                <tr>
-                  <th className="py-3 px-4">Timestamp</th>
-                  <th className="py-3 px-4">Actor</th>
-                  <th className="py-3 px-4">Action</th>
-                  <th className="py-3 px-4">Entity</th>
-                  <th className="py-3 px-4">Details</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-medium">
-                {auditLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-50/80">
-                    <td className="py-3 px-4 font-mono text-slate-500 text-[11px] whitespace-nowrap">
-                      {new Date(log.timestamp).toLocaleString()}
-                    </td>
-                    <td className="py-3 px-4 text-slate-900 font-bold">{log.userName}</td>
-                    <td className="py-3 px-4">
-                      <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-slate-100 text-indigo-700 border border-slate-200 font-semibold">
-                        {log.action}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-slate-600">{log.entityName}</td>
-                    <td className="py-3 px-4 text-slate-800 max-w-sm truncate">{log.details}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Tab: User Management */}
-      {activeTab === 'admin-users' && <UserManagementTab />}
-    </div>
+      <Panel className="mt-6" title="Terms">
+        <Table>
+          <thead>
+            <tr>
+              <th className={th}>Term</th>
+              <th className={th}>Academic year</th>
+              <th className={th}>Dates</th>
+              <th className={th}>Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {meta.trimesters.map((t) => (
+              <tr key={t.id}>
+                <td className={cn(td, 'font-medium text-slate-900')}>{t.name}</td>
+                <td className={cn(td, 'tabular-nums')}>{t.academicSession}</td>
+                <td className={cn(td, 'whitespace-nowrap tabular-nums')}>
+                  {formatDate(t.startDate)} to {formatDate(t.endDate)}
+                </td>
+                <td className={td}>
+                  <Badge tone={t.status === 'ACTIVE' ? 'success' : 'neutral'}>{humanize(t.status)}</Badge>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      </Panel>
+    </>
   );
-};
+}
+
+function RosterImport({ meta, onImported }: { meta: AcademicMeta; onImported: () => void }) {
+  const notify = useToast();
+  const [sectionId, setSectionId] = useState(meta.sections[0]?.id ?? '');
+  const [text, setText] = useState('');
+  const [preview, setPreview] = useState<ImportPreview | null>(null);
+  const [busy, setBusy] = useState<'validate' | 'import' | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const rows = useMemo(() => parseRoster(text), [text]);
+  const section = meta.sections.find((s) => s.id === sectionId);
+
+  // Any edit invalidates the previous validation.
+  const change = (next: { text?: string; sectionId?: string }) => {
+    if (next.text !== undefined) setText(next.text);
+    if (next.sectionId !== undefined) setSectionId(next.sectionId);
+    setPreview(null);
+    setError(null);
+  };
+
+  async function send(isPreviewOnly: boolean) {
+    setBusy(isPreviewOnly ? 'validate' : 'import');
+    setError(null);
+    try {
+      const result = await api.post<ImportPreview & { message?: string; summary?: { successfullyImported: number } }>(
+        '/api/admin/import',
+        { sectionId, students: rows, isPreviewOnly }
+      );
+      if (isPreviewOnly) {
+        setPreview(result);
+      } else {
+        notify(`Imported ${plural(result.summary?.successfullyImported ?? 0, 'student')} into ${section?.name ?? 'the section'}.`);
+        setText('');
+        setPreview(null);
+        onImported();
+      }
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const issues = preview
+    ? [...preview.duplicates, ...preview.invalidRecords.map((r) => ({ ...r, enrollmentNumber: '' }))].sort(
+        (a, b) => a.row - b.row
+      )
+    : [];
+
+  return (
+    <>
+      <PageHeader
+        title="Roster import"
+        description="Add students to a course section from a CSV file. Rows are checked for missing fields and duplicate enrollment numbers before anything is saved."
+        actions={
+          <a
+            href={`data:text/csv;charset=utf-8,${encodeURIComponent(ROSTER_TEMPLATE)}`}
+            download="roster-template.csv"
+            className={buttonClass('secondary')}
+          >
+            <Download aria-hidden /> Download template
+          </a>
+        }
+      />
+      <div className="grid gap-6 lg:grid-cols-5">
+        <Panel className="lg:col-span-3" title="Roster">
+          <div className="space-y-4 px-5 py-4">
+            {error && <Notice tone="danger">{error}</Notice>}
+            <Field label="Section">
+              <select value={sectionId} onChange={(e) => change({ sectionId: e.target.value })} className={control}>
+                {meta.sections.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {sectionLabel(s, meta.courses)} ({plural(s.studentCount, 'student')})
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="CSV file" hint="Columns: enrollment number, full name, email. A header row is optional.">
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) change({ text: await file.text() });
+                }}
+                className="block w-full text-sm text-slate-600 file:mr-3 file:h-9 file:rounded-md file:border file:border-slate-300 file:bg-white file:px-3.5 file:text-sm file:font-medium file:text-slate-800 hover:file:bg-slate-50"
+              />
+            </Field>
+            <Field label="Rows" hint="Loaded from the file, or paste rows here.">
+              <textarea
+                rows={8}
+                value={text}
+                onChange={(e) => change({ text: e.target.value })}
+                placeholder={'CS-2026-101, Harshit Mehta, harshit.mehta@univ.edu\nCS-2026-102, Riya Kapoor, riya.kapoor@univ.edu'}
+                spellCheck={false}
+                className={cn(textareaClass, 'tabular-nums')}
+              />
+            </Field>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => send(true)}
+                loading={busy === 'validate'}
+                disabled={!rows.length || busy !== null}
+              >
+                Check {rows.length ? plural(rows.length, 'row') : 'rows'}
+              </Button>
+              <Button
+                onClick={() => send(false)}
+                loading={busy === 'import'}
+                disabled={!preview?.validCount || busy !== null}
+              >
+                <Upload aria-hidden /> Import {preview?.validCount ? plural(preview.validCount, 'student') : 'students'}
+              </Button>
+            </div>
+          </div>
+        </Panel>
+
+        <Panel className="lg:col-span-2" title="Check results">
+          {!preview ? (
+            <EmptyState
+              title="Nothing checked yet"
+              description="Check the rows to see which students will be added and which rows need fixing."
+            />
+          ) : (
+            <div className="space-y-4 px-5 py-4">
+              <dl className="grid grid-cols-3 gap-px overflow-hidden rounded-md border border-slate-200 bg-slate-200 text-center">
+                {[
+                  ['Rows', preview.totalRecords],
+                  ['Ready', preview.validCount],
+                  ['Need fixing', preview.duplicateCount + preview.invalidCount],
+                ].map(([label, value]) => (
+                  <div key={label} className="bg-white px-3 py-2">
+                    <dt className="text-xs text-slate-500">{label}</dt>
+                    <dd className="text-lg font-semibold text-slate-900 tabular-nums">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+              {issues.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-slate-900">Rows that won’t be imported</h3>
+                  <ul className="mt-2 divide-y divide-slate-100 rounded-md border border-slate-200 text-sm">
+                    {issues.map((issue) => (
+                      <li key={`${issue.row}-${issue.reason}`} className="flex gap-3 px-3 py-2">
+                        <span className="w-12 shrink-0 text-slate-500 tabular-nums">Row {issue.row}</span>
+                        <span className="text-slate-800">
+                          {issue.enrollmentNumber && <span className="font-medium tabular-nums">{issue.enrollmentNumber}: </span>}
+                          {issue.reason}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {preview.sampleValid.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-slate-900">
+                    Ready to import{preview.validCount > preview.sampleValid.length && ' (first 5)'}
+                  </h3>
+                  <ul className="mt-2 divide-y divide-slate-100 rounded-md border border-slate-200 text-sm">
+                    {preview.sampleValid.map((s) => (
+                      <li key={s.enrollmentNumber} className="px-3 py-2">
+                        <Person name={s.fullName} detail={`${s.enrollmentNumber}, ${s.email}`} />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </Panel>
+      </div>
+    </>
+  );
+}
+
+function Reports({ meta, onOpenReport }: { meta: AcademicMeta; onOpenReport: (courseId: string, sectionId: string) => void }) {
+  return (
+    <>
+      <PageHeader
+        title="Reports"
+        description="Printable statements of attendance and examination eligibility, one per course section, with signature blocks for the examination board."
+      />
+      <Panel>
+        {meta.sections.length === 0 ? (
+          <EmptyState title="No course sections yet" />
+        ) : (
+          <Table>
+            <thead>
+              <tr>
+                <th className={th}>Course</th>
+                <th className={th}>Department</th>
+                <th className={th}>Faculty</th>
+                <th className={cn(th, 'text-right')}>Students</th>
+                <th className={th}>
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {meta.sections.map((s) => {
+                const course = meta.courses.find((c) => c.id === s.courseId);
+                return (
+                  <tr key={s.id}>
+                    <td className={cn(td, 'min-w-60')}>
+                      <Person name={course ? `${course.code} ${course.title}` : s.courseId} detail={s.name} />
+                    </td>
+                    <td className={td}>{meta.departments.find((d) => d.id === s.departmentId)?.name}</td>
+                    <td className={cn(td, 'whitespace-nowrap')}>{s.facultyName}</td>
+                    <td className={cn(td, 'text-right tabular-nums')}>{s.studentCount}</td>
+                    <td className={cn(td, 'text-right')}>
+                      <Button variant="secondary" size="sm" onClick={() => onOpenReport(s.courseId, s.id)}>
+                        <FileText aria-hidden /> Open report
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </Table>
+        )}
+      </Panel>
+    </>
+  );
+}
+
+function AuditLog() {
+  const q = useApi<{ logs: SystemAuditLog[] }>('/api/audit-logs');
+  const [search, setSearch] = useState('');
+  const [action, setAction] = useState('ALL');
+  const logs = useMemo(() => q.data?.logs ?? [], [q.data]);
+  const actions = useMemo(() => [...new Set(logs.map((l) => l.action))].sort(), [logs]);
+  const needle = search.trim().toLowerCase();
+  const shown = logs.filter(
+    (l) =>
+      (action === 'ALL' || l.action === action) &&
+      `${l.userName} ${l.details} ${l.entityName} ${l.entityId}`.toLowerCase().includes(needle)
+  );
+
+  return (
+    <>
+      <PageHeader
+        title="Audit log"
+        description="Sign-ins, attendance submissions, leave decisions and account changes, newest first. Entries can’t be edited or removed."
+        actions={
+          <Button variant="secondary" onClick={q.reload} loading={q.loading && !!q.data}>
+            Refresh
+          </Button>
+        }
+      />
+      <Panel>
+        <div className="flex flex-col gap-3 border-b border-slate-200 px-5 py-3 sm:flex-row sm:items-center">
+          <div className="relative sm:w-80">
+            <Search aria-hidden className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search user, record or details"
+              aria-label="Search the audit log"
+              className={cn(control, 'pl-9')}
+            />
+          </div>
+          <select value={action} onChange={(e) => setAction(e.target.value)} aria-label="Filter by action" className={cn(control, 'sm:w-64')}>
+            <option value="ALL">All actions</option>
+            {actions.map((a) => (
+              <option key={a} value={a}>
+                {humanize(a)}
+              </option>
+            ))}
+          </select>
+          {q.data && (
+            <p className="text-sm text-slate-500 sm:ml-auto">
+              {shown.length === logs.length ? plural(logs.length, 'entry', 'entries') : `${shown.length} of ${logs.length}`}
+            </p>
+          )}
+        </div>
+        {!q.data ? (
+          <LoadState error={q.error} onRetry={q.reload} />
+        ) : shown.length === 0 ? (
+          <EmptyState title="No entries match these filters" />
+        ) : (
+          <Table>
+            <thead>
+              <tr>
+                <th className={th}>Time</th>
+                <th className={th}>User</th>
+                <th className={th}>Action</th>
+                <th className={th}>Details</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {shown.map((log) => (
+                <tr key={log.id} className="align-top">
+                  <td className={cn(td, 'whitespace-nowrap text-slate-600 tabular-nums')}>{formatDateTime(log.timestamp)}</td>
+                  <td className={cn(td, 'whitespace-nowrap font-medium text-slate-900')}>{log.userName}</td>
+                  <td className={cn(td, 'whitespace-nowrap')}>
+                    <Badge>{humanize(log.action)}</Badge>
+                  </td>
+                  <td className={cn(td, 'min-w-80 text-slate-700')}>
+                    {log.details}
+                    <div className="mt-0.5 text-xs text-slate-500">
+                      {log.entityName} {log.entityId}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+      </Panel>
+    </>
+  );
+}

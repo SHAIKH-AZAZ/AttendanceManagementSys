@@ -1,211 +1,132 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { UserRole } from '@/types';
-import {
-  GraduationCap,
-  Lock,
-  Mail,
-  ArrowRight,
-  ShieldCheck,
-  BookOpen,
-  UserCog,
-  Sparkles,
-  AlertCircle,
-  Building2,
-  KeyRound,
-} from 'lucide-react';
+import { Brand } from '@/components/layout/Navbar';
+import { Button, Field, Notice, control, cn } from '@/components/ui';
 
-export const LoginPage: React.FC = () => {
-  const { login, loginAs, isLoading } = useAuth();
-  const [email, setEmail] = useState('rajesh.sharma@univ.edu');
-  const [password, setPassword] = useState('faculty123');
+// Seeded accounts for local development. The list is compiled out of production builds.
+const DEV_ACCOUNTS =
+  process.env.NODE_ENV === 'production'
+    ? []
+    : [
+        { role: 'Faculty', name: 'Prof. Rajesh Sharma', email: 'rajesh.sharma@univ.edu', password: 'faculty123' },
+        { role: 'Student', name: 'Devendra Joshi', email: 'devendra.joshi@univ.edu', password: 'student123' },
+        { role: 'Head of department', name: 'Dr. Sunita Rao', email: 'sunita.rao@univ.edu', password: 'hod123' },
+        { role: 'Administrator', name: 'Arun Kulkarni', email: 'arun.kulkarni@univ.edu', password: 'admin123' },
+      ];
+
+export function LoginPage() {
+  const { login } = useAuth();
+  const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    document.title = 'Sign in | AttendEASE365';
+  }, []);
+
+  async function signIn(email: string, password: string) {
+    setPending(true);
     setError(null);
     try {
       await login(email, password);
     } catch (err) {
-      setError((err as Error).message || 'Invalid credentials');
+      setError((err as Error).message);
+      setPending(false);
     }
-  };
+  }
 
-  const handleQuickLogin = async (role: UserRole) => {
-    setError(null);
-    try {
-      await loginAs(role);
-    } catch (err) {
-      setError((err as Error).message || 'SSO Login failed');
-    }
-  };
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    signIn(String(data.get('email')), String(data.get('password')));
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 text-slate-900 antialiased">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        {/* Logo */}
-        <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-sky-500 flex items-center justify-center shadow-lg shadow-indigo-500/25 ring-1 ring-black/5">
-          <GraduationCap className="w-8 h-8 text-white" />
+    <div className="grid min-h-screen lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+      <aside className="flex flex-col bg-brand-800 px-6 py-6 text-white sm:px-10 lg:py-12">
+        <Brand inverted />
+        <div className="mt-auto hidden max-w-md lg:block">
+          <p className="font-serif text-4xl leading-tight font-medium">
+            Attendance, leave and examination eligibility in one register.
+          </p>
+          <p className="mt-5 text-sm leading-relaxed text-brand-100">
+            Faculty record each lecture, heads of department approve leave, and students see where they stand against
+            the 75% attendance requirement.
+          </p>
         </div>
+      </aside>
 
-        <h2 className="mt-4 text-2xl font-extrabold tracking-tight text-slate-900">
-          AttendEASE<span className="text-indigo-600">365</span>
-        </h2>
-        <p className="mt-1 text-xs text-slate-500 font-medium">
-          University Attendance & Academic Compliance Platform
-        </p>
-      </div>
+      <main className="flex items-center justify-center px-4 py-12 sm:px-6">
+        <div className="w-full max-w-sm">
+          <h1 className="font-serif text-2xl font-semibold tracking-tight text-slate-900">Sign in</h1>
+          <p className="mt-1.5 text-sm text-slate-600">Use the email address and password issued by your institution.</p>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
-        <div className="bg-white py-8 px-6 sm:px-10 border border-slate-200/90 rounded-3xl shadow-sm space-y-6">
-          {error && (
-            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          {/* Form */}
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-xs font-bold text-slate-700 mb-1"
-              >
-                Institutional Email
-              </label>
+          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+            {error && <Notice tone="danger">{error}</Notice>}
+            <Field label="Email address">
+              <input
+                name="email"
+                type="email"
+                autoComplete="username"
+                required
+                placeholder="name@univ.edu"
+                className={control}
+              />
+            </Field>
+            <Field label="Password">
               <div className="relative">
-                <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                 <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@univ.edu"
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label
-                  htmlFor="password"
-                  className="block text-xs font-bold text-slate-700"
-                >
-                  Password
-                </label>
-                <span className="text-[11px] text-slate-400 font-medium">
-                  Default: role123
-                </span>
-              </div>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                <input
-                  id="password"
                   name="password"
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
                   required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+                  className={cn(control, 'pr-16')}
                 />
+                <button
+                  type="button"
+                  aria-pressed={showPassword}
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute inset-y-0 right-0 rounded-r-md px-3 text-sm font-medium text-brand-700 hover:text-brand-900"
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
               </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full mt-2 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm flex items-center justify-center gap-2 transition-all active:scale-98 disabled:opacity-50"
-            >
-              <span>{isLoading ? 'Authenticating...' : 'Sign In with Credentials'}</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+            </Field>
+            <Button type="submit" loading={pending} className="w-full">
+              Sign in
+            </Button>
           </form>
 
-          {/* Quick SSO Logins */}
-          <div className="pt-4 border-t border-slate-200">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 mb-2.5">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-              1-Click Demo SSO Personas
-            </div>
-            <p className="text-[11px] text-slate-500 mb-3">
-              Instant authentication without entering credentials:
-            </p>
-
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('FACULTY')}
-                disabled={isLoading}
-                className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 transition-all text-left flex items-start gap-2"
-              >
-                <div className="p-1 rounded-md bg-indigo-100 text-indigo-700">
-                  <BookOpen className="w-3.5 h-3.5" />
-                </div>
-                <div>
-                  <div className="font-bold text-slate-900 text-[11px]">Faculty</div>
-                  <div className="text-[10px] text-slate-500">Prof. Sharma</div>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('STUDENT')}
-                disabled={isLoading}
-                className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-200 transition-all text-left flex items-start gap-2"
-              >
-                <div className="p-1 rounded-md bg-emerald-100 text-emerald-700">
-                  <GraduationCap className="w-3.5 h-3.5" />
-                </div>
-                <div>
-                  <div className="font-bold text-slate-900 text-[11px]">Student</div>
-                  <div className="text-[10px] text-slate-500">Devendra (72%)</div>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('HOD')}
-                disabled={isLoading}
-                className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-amber-50 hover:border-amber-200 transition-all text-left flex items-start gap-2"
-              >
-                <div className="p-1 rounded-md bg-amber-100 text-amber-800">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                </div>
-                <div>
-                  <div className="font-bold text-slate-900 text-[11px]">HOD</div>
-                  <div className="text-[10px] text-slate-500">Dr. Sunita Rao</div>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('ADMIN_STAFF')}
-                disabled={isLoading}
-                className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-purple-50 hover:border-purple-200 transition-all text-left flex items-start gap-2"
-              >
-                <div className="p-1 rounded-md bg-purple-100 text-purple-700">
-                  <UserCog className="w-3.5 h-3.5" />
-                </div>
-                <div>
-                  <div className="font-bold text-slate-900 text-[11px]">Admin Staff</div>
-                  <div className="text-[10px] text-slate-500">Arun (Registrar)</div>
-                </div>
-              </button>
-            </div>
-          </div>
+          {DEV_ACCOUNTS.length > 0 && (
+            <section aria-labelledby="dev-accounts" className="mt-10 rounded-lg border border-dashed border-slate-300 bg-white px-4 py-3">
+              <h2 id="dev-accounts" className="text-sm font-medium text-slate-900">
+                Development accounts
+              </h2>
+              <p className="mt-0.5 text-xs text-slate-500">Seeded users. This list is not included in production builds.</p>
+              <ul className="mt-2 divide-y divide-slate-100">
+                {DEV_ACCOUNTS.map((account) => (
+                  <li key={account.email}>
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => signIn(account.email, account.password)}
+                      className="flex w-full items-center justify-between gap-3 py-2 text-left disabled:opacity-60"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium text-slate-900">{account.name}</span>
+                        <span className="block text-xs text-slate-500">{account.role}</span>
+                      </span>
+                      <span className="text-sm font-medium text-brand-700">Sign in</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </div>
-
-        <div className="mt-6 text-center text-[11px] text-slate-500">
-          Protected by Enterprise Role-Based Access Control (RBAC) & Multi-Campus Isolation
-        </div>
-      </div>
+      </main>
     </div>
   );
-};
+}

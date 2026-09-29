@@ -1,36 +1,40 @@
-import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import type { Metadata, Viewport } from 'next';
+import { Public_Sans, Source_Serif_4 } from 'next/font/google';
 import './globals.css';
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
+const publicSans = Public_Sans({
+  variable: '--font-public-sans',
   subsets: ['latin'],
+  display: 'swap',
 });
 
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
+const sourceSerif = Source_Serif_4({
+  variable: '--font-source-serif',
   subsets: ['latin'],
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
-  title: 'AttendEASE365 — Multi-Campus Attendance & Academic Compliance',
-  description:
-    'Enterprise academic attendance management system with multi-campus isolation, immutable lecture sessions, 75% regulatory compliance, and automated leave excusal.',
+  title: {
+    default: 'AttendEASE365',
+    template: '%s | AttendEASE365',
+  },
+  description: 'Attendance records, leave approvals and examination eligibility for university departments.',
+  robots: { index: false, follow: false },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#1f3a68',
 };
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col bg-slate-50 text-slate-900 selection:bg-indigo-600 selection:text-white font-sans">
-        {children}
-      </body>
+    <html lang="en" className={`${publicSans.variable} ${sourceSerif.variable} h-full`}>
+      <body className="min-h-full font-sans">{children}</body>
     </html>
   );
 }
