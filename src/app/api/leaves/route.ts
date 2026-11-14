@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
 import { dbService } from '@/lib/db-service';
+import { requireUser } from '@/lib/auth';
 
 export async function GET(request: Request) {
+  const auth = await requireUser('STUDENT', 'FACULTY', 'HOD', 'ADMIN_STAFF');
+  if (auth instanceof NextResponse) return auth;
   try {
     const { searchParams } = new URL(request.url);
-    const studentId = searchParams.get('studentId') || undefined;
-    const departmentId = searchParams.get('departmentId') || undefined;
+    // Students: own leaves only. HODs: own department only.
+    const studentId =
+      auth.role === 'STUDENT' ? auth.id : searchParams.get('studentId') || undefined;
+    const departmentId =
+      auth.role === 'HOD' ? auth.departmentId : searchParams.get('departmentId') || undefined;
     const status = searchParams.get('status') || undefined;
 
     const leaves = await dbService.getLeaves({
@@ -24,14 +30,12 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireUser('STUDENT');
+  if (auth instanceof NextResponse) return auth;
   try {
     const body = await request.json();
+    // Identity comes from the session, never from the request body.
     const {
-      studentId,
-      studentName,
-      enrollmentNumber,
-      campusId,
-      departmentId,
       leaveType,
       startDate,
       endDate,
@@ -39,7 +43,7 @@ export async function POST(request: Request) {
       documentUrl,
     } = body;
 
-    if (!studentId || !startDate || !endDate || !reason || !leaveType) {
+    if (!startDate || !endDate || !reason || !leaveType) {
       return NextResponse.json(
         { error: 'Missing required leave fields' },
         { status: 400 }
@@ -47,11 +51,11 @@ export async function POST(request: Request) {
     }
 
     const leave = await dbService.submitLeave({
-      studentId,
-      studentName: studentName || 'Student',
-      enrollmentNumber: enrollmentNumber || 'ENR-UNKNOWN',
-      campusId: campusId || 'campus-1',
-      departmentId: departmentId || 'dept-cs',
+      studentId: auth.id,
+      studentName: auth.fullName,
+      enrollmentNumber: auth.studentProfile?.enrollmentNumber || 'ENR-UNKNOWN',
+      campusId: auth.campusId,
+      departmentId: auth.departmentId || 'dept-cs',
       leaveType,
       startDate,
       endDate,

@@ -27,6 +27,7 @@ import {
   INITIAL_THRESHOLDS,
   ROSTER_STUDENTS,
 } from './seed-data';
+import { hashPassword, verifyPassword } from './password';
 
 // Reactive in-memory state (resilient fallback when MongoDB connection is establishing or offline)
 class DatabaseState {
@@ -35,7 +36,11 @@ class DatabaseState {
   trimesters: Trimester[] = [...INITIAL_TRIMESTERS];
   courses: Course[] = [...INITIAL_COURSES];
   sections: Section[] = [...INITIAL_SECTIONS];
-  users: User[] = [...INITIAL_USERS];
+  // Seed passwords are plaintext in seed-data; only hashes live in state.
+  users: User[] = INITIAL_USERS.map((u) => ({
+    ...u,
+    password: u.password ? hashPassword(u.password) : undefined,
+  }));
   sessions: LectureSession[] = JSON.parse(JSON.stringify(INITIAL_SESSIONS));
   leaves: LeaveApplication[] = JSON.parse(JSON.stringify(INITIAL_LEAVES));
   audits: AttendanceAudit[] = [];
@@ -46,14 +51,14 @@ class DatabaseState {
 // Global persistence across Next.js dev server hot-reloads
 declare global {
   // eslint-disable-next-line no-var
-  var __attendease_db_state: DatabaseState | undefined;
+  var __attendease_db_state_v2: DatabaseState | undefined;
 }
 
 const state: DatabaseState =
-  global.__attendease_db_state || new DatabaseState();
+  global.__attendease_db_state_v2 || new DatabaseState();
 
-if (!global.__attendease_db_state) {
-  global.__attendease_db_state = state;
+if (!global.__attendease_db_state_v2) {
+  global.__attendease_db_state_v2 = state;
 }
 
 export const dbService = {
@@ -104,23 +109,16 @@ export const dbService = {
   async authenticate(
     email: string,
     password?: string
-  ): Promise<{ user: User; token: string }> {
+  ): Promise<User> {
     const user = await this.getUserByEmail(email);
-    if (!user) {
+    // Password checked before active status → errors don't reveal which accounts exist.
+    if (!user || !password || !verifyPassword(password, user.password)) {
       throw new Error('Invalid email or password.');
     }
 
     if (!user.isActive) {
       throw new Error('This user account has been deactivated. Please contact your administrator.');
     }
-
-    // Check password if set on user
-    if (user.password && password && user.password !== password) {
-      throw new Error('Invalid email or password.');
-    }
-
-    // Generate mock signed bearer session token
-    const token = `att_jwt_${user.id}_${Date.now()}`;
 
     this.addSystemAudit({
       userId: user.id,
@@ -131,7 +129,7 @@ export const dbService = {
       details: `${user.fullName} (${user.role}) logged in successfully.`,
     });
 
-    return { user, token };
+    return user;
   },
 
   async createUser(data: {
@@ -160,7 +158,7 @@ export const dbService = {
       campusId: data.campusId,
       departmentId: data.departmentId,
       isActive: true,
-      password: data.password || 'welcome123',
+      password: hashPassword(data.password || 'welcome123'),
       createdAt: new Date().toISOString(),
       studentProfile:
         data.role === 'STUDENT'
@@ -205,7 +203,19 @@ export const dbService = {
     const user = state.users.find((u) => u.id === id);
     if (!user) throw new Error('User not found.');
 
-    Object.assign(user, updates);
+    // Whitelist: never let a request body overwrite id/ssoId/createdAt or store a raw password.
+    const { fullName, email, role, campusId, departmentId, isActive, password } = updates;
+    if (email && email.trim().toLowerCase() !== user.email) {
+      const taken = await this.getUserByEmail(email);
+      if (taken) throw new Error('A user with this email address already exists.');
+      user.email = email.trim().toLowerCase();
+    }
+    if (fullName) user.fullName = fullName.trim();
+    if (role) user.role = role;
+    if (campusId) user.campusId = campusId;
+    if (departmentId !== undefined) user.departmentId = departmentId;
+    if (typeof isActive === 'boolean') user.isActive = isActive;
+    if (password) user.password = hashPassword(password);
 
     this.addSystemAudit({
       userId: 'user-admin-1',

@@ -152,8 +152,8 @@ CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs">
           <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-1">
-            <span>Configured Campuses</span>
-            <Building2 className="w-4 h-4 text-purple-600" />
+            <span>Configured campuses</span>
+            <Building2 className="w-4 h-4 text-brand-600" />
           </div>
           <div className="text-2xl font-bold text-slate-900">3 Campuses</div>
           <div className="text-xs text-slate-500 mt-1 font-medium">North, South, City</div>
@@ -162,7 +162,7 @@ CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
         <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs">
           <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-1">
             <span>Departments</span>
-            <Layers className="w-4 h-4 text-purple-600" />
+            <Layers className="w-4 h-4 text-brand-600" />
           </div>
           <div className="text-2xl font-bold text-slate-900">4 Departments</div>
           <div className="text-xs text-slate-500 mt-1 font-medium">Data-isolated tenants</div>
@@ -170,8 +170,8 @@ CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
 
         <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs">
           <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-1">
-            <span>Active Term</span>
-            <BookOpen className="w-4 h-4 text-indigo-600" />
+            <span>Active term</span>
+            <BookOpen className="w-4 h-4 text-brand-600" />
           </div>
           <div className="text-base font-bold text-slate-900">Trimester 2 (2026-27)</div>
           <div className="text-xs text-emerald-600 mt-1 font-bold">● Active Session</div>
@@ -179,7 +179,7 @@ CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
 
         <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs">
           <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-1">
-            <span>Audit Trail Entries</span>
+            <span>Audit trail entries</span>
             <History className="w-4 h-4 text-amber-600" />
           </div>
           <div className="text-2xl font-bold text-slate-900">{auditLogs.length} Events</div>
@@ -194,7 +194,7 @@ CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
               ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
               : notification.type === 'error'
               ? 'bg-rose-50 border-rose-200 text-rose-800'
-              : 'bg-indigo-50 border-indigo-200 text-indigo-800'
+              : 'bg-brand-50 border-brand-200 text-brand-800'
           }`}
         >
           <div className="flex items-center gap-2 font-medium">
@@ -221,7 +221,7 @@ CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <div className="flex items-center gap-2 text-indigo-700 text-xs font-bold">
+                <div className="flex items-center gap-2 text-brand-700 text-xs font-bold">
                   <Building2 className="w-4 h-4" /> Campus 1: North Campus
                 </div>
                 <div className="mt-2 space-y-1.5 text-xs text-slate-700 font-medium">
@@ -241,7 +241,7 @@ CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
               </div>
 
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <div className="flex items-center gap-2 text-indigo-700 text-xs font-bold">
+                <div className="flex items-center gap-2 text-brand-700 text-xs font-bold">
                   <Building2 className="w-4 h-4" /> Campus 2: South Campus
                 </div>
                 <div className="mt-2 space-y-1.5 text-xs text-slate-700 font-medium">
@@ -257,7 +257,7 @@ CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
               </div>
 
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <div className="flex items-center gap-2 text-indigo-700 text-xs font-bold">
+                <div className="flex items-center gap-2 text-brand-700 text-xs font-bold">
                   <Building2 className="w-4 h-4" /> Campus 3: City Campus
                 </div>
                 <div className="mt-2 space-y-1.5 text-xs text-slate-700 font-medium">
@@ -281,8 +281,8 @@ CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
         <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-5">
           <div>
             <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5 text-indigo-600" />
-              Student Roster Bulk Import & Validation Engine
+              <FileSpreadsheet className="w-5 h-5 text-brand-600" />
+              Bulk student import
             </h3>
             <p className="text-xs text-slate-500 mt-1">
               Supports CSV & Excel rosters. Detects duplicate enrollment numbers, checks formatting, and
@@ -295,12 +295,12 @@ CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Target Course & Section
+                  Target course & section
                 </label>
                 <select
                   value={importSectionId}
                   onChange={(e) => setImportSectionId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500"
                 >
                   <option value="sec-ds-a">Data Structures (CS-301) - Section A</option>
                   <option value="sec-ds-b">Data Structures (CS-301) - Section B</option>
@@ -315,9 +315,9 @@ CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
                   </label>
                   <button
                     onClick={handleLoadSampleCSV}
-                    className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold"
+                    className="text-2xs text-brand-600 hover:text-brand-800 font-bold"
                   >
-                    Load Test CSV Sample
+                    Load sample CSV
                   </button>
                 </div>
                 <textarea
@@ -325,7 +325,7 @@ CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
                   value={importText}
                   onChange={(e) => setImportText(e.target.value)}
                   placeholder={`CS-2026-101, Harshit Mehta, harshit.m@univ.edu\nCS-2026-102, Riya Kapoor, riya.k@univ.edu\nCS-2026-001, Duplicate Student, ...`}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs font-mono text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs font-mono text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
 
@@ -336,8 +336,8 @@ CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
                   disabled={isImporting || !importText.trim()}
                   className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold text-xs flex items-center gap-1.5 transition-all shadow-2xs"
                 >
-                  <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600" />
-                  Validate & Preview
+                  <CheckCircle2 className="w-3.5 h-3.5 text-brand-600" />
+                  Validate & preview
                 </button>
                 {previewResult && previewResult.validCount > 0 && (
                   <button
@@ -355,27 +355,27 @@ CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
             {/* Validation Feedback & Preview */}
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col justify-between">
               <div>
-                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                  Validation Preview Matrix
+                <h4 className="text-xs font-bold text-slate-700 mb-2">
+                  Validation preview matrix
                 </h4>
 
                 {previewResult ? (
                   <div className="space-y-3">
                     <div className="grid grid-cols-3 gap-2 text-center text-xs">
                       <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
-                        <div className="text-[10px] text-slate-500 font-semibold">Total Rows</div>
+                        <div className="text-2xs text-slate-500 font-semibold">Total rows</div>
                         <div className="text-base font-bold text-slate-900">
                           {previewResult.totalRecords}
                         </div>
                       </div>
                       <div className="bg-emerald-50/70 p-2.5 rounded-lg border border-emerald-200 shadow-2xs">
-                        <div className="text-[10px] text-emerald-800 font-semibold">Valid</div>
+                        <div className="text-2xs text-emerald-800 font-semibold">Valid</div>
                         <div className="text-base font-bold text-emerald-700">
                           {previewResult.validCount}
                         </div>
                       </div>
                       <div className="bg-rose-50/70 p-2.5 rounded-lg border border-rose-200 shadow-2xs">
-                        <div className="text-[10px] text-rose-800 font-semibold">Errors & Dupes</div>
+                        <div className="text-2xs text-rose-800 font-semibold">Errors and duplicates</div>
                         <div className="text-base font-bold text-rose-700">
                           {previewResult.duplicateCount + previewResult.invalidCount}
                         </div>
@@ -385,10 +385,10 @@ CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
                     {/* Detected duplicates */}
                     {previewResult.duplicates.length > 0 && (
                       <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs">
-                        <div className="text-amber-800 font-bold flex items-center gap-1 text-[11px]">
+                        <div className="text-amber-800 font-bold flex items-center gap-1 text-2xs">
                           <AlertTriangle className="w-3 h-3 text-amber-600" /> Duplicate Enrollment Numbers Found:
                         </div>
-                        <ul className="text-slate-700 mt-1 space-y-0.5 text-[11px] font-medium">
+                        <ul className="text-slate-700 mt-1 space-y-0.5 text-2xs font-medium">
                           {previewResult.duplicates.map((d: any, idx: number) => (
                             <li key={idx}>
                               Row {d.row}: <strong className="font-mono text-slate-900">{d.enrollmentNumber}</strong> - {d.reason}
@@ -401,10 +401,10 @@ CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
                     {/* Detected invalid format */}
                     {previewResult.invalidRecords.length > 0 && (
                       <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs">
-                        <div className="text-rose-800 font-bold flex items-center gap-1 text-[11px]">
+                        <div className="text-rose-800 font-bold flex items-center gap-1 text-2xs">
                           <XCircle className="w-3 h-3 text-rose-600" /> Missing Fields or Format Errors:
                         </div>
-                        <ul className="text-slate-700 mt-1 space-y-0.5 text-[11px] font-medium">
+                        <ul className="text-slate-700 mt-1 space-y-0.5 text-2xs font-medium">
                           {previewResult.invalidRecords.map((inv: any, idx: number) => (
                             <li key={idx}>
                               Row {inv.row}: {inv.reason}
@@ -423,7 +423,7 @@ CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
                 )}
               </div>
 
-              <div className="text-[10px] text-slate-500 pt-3 border-t border-slate-200 font-medium">
+              <div className="text-2xs text-slate-500 pt-3 border-t border-slate-200 font-medium">
                 Rule 7 Compliance: No duplicate enrollment numbers allowed within the same section.
               </div>
             </div>
@@ -437,8 +437,8 @@ CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Award className="w-5 h-5 text-indigo-600" />
-                Official University & Examination Board Reports
+                <Award className="w-5 h-5 text-brand-600" />
+                University reports
               </h3>
               <p className="text-xs text-slate-500">
                 Institutional attendance reports with university headers, student rosters, compliance stats,
@@ -448,7 +448,7 @@ CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
             {onOpenUniversityReport && (
               <button
                 onClick={() => onOpenUniversityReport('course-ds', 'sec-ds-a')}
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-2 shadow-sm"
+                className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs flex items-center gap-2 shadow-sm"
               >
                 <Award className="w-4 h-4" /> Launch University Board Generator
               </button>
@@ -457,26 +457,26 @@ CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-              <div className="text-xs font-bold text-indigo-700">Department Consolidation</div>
+              <div className="text-xs font-bold text-brand-700">Department consolidation</div>
               <p className="text-xs text-slate-600 mt-1">
                 Consolidated attendance across Computer Science & Engineering department (CS-301, CS-302, CS-303).
               </p>
               <button
                 onClick={() => onOpenUniversityReport && onOpenUniversityReport('course-ds', 'sec-ds-a')}
-                className="mt-3 text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1"
+                className="mt-3 text-xs text-brand-600 hover:text-brand-800 font-bold flex items-center gap-1"
               >
                 Preview Submission Template <ExternalLink className="w-3 h-3" />
               </button>
             </div>
 
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-              <div className="text-xs font-bold text-purple-700">Cross-Campus Consolidation</div>
+              <div className="text-xs font-bold text-brand-700">Cross-Campus Consolidation</div>
               <p className="text-xs text-slate-600 mt-1">
                 Authorized administrator consolidation for North Campus and South Campus.
               </p>
               <button
                 onClick={() => onOpenUniversityReport && onOpenUniversityReport('course-ds', 'sec-ds-a')}
-                className="mt-3 text-xs text-purple-600 hover:text-purple-800 font-bold flex items-center gap-1"
+                className="mt-3 text-xs text-brand-600 hover:text-brand-800 font-bold flex items-center gap-1"
               >
                 Generate Combined Audit PDF <ExternalLink className="w-3 h-3" />
               </button>
@@ -491,7 +491,7 @@ CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
           <div>
             <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
               <History className="w-5 h-5 text-amber-600" />
-              System Audit Trail & Immutability Logs
+              Audit log
             </h3>
             <p className="text-xs text-slate-500">
               Append-only tamper-evident event log recording logins, attendance submissions, leave actions,
@@ -499,9 +499,9 @@ CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
             </p>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="table-scroll">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
+              <thead className="bg-slate-50 text-slate-600 text-2xs font-bold border-b border-slate-200">
                 <tr>
                   <th className="py-3 px-4">Timestamp</th>
                   <th className="py-3 px-4">Actor</th>
@@ -513,12 +513,12 @@ CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
               <tbody className="divide-y divide-slate-100 font-medium">
                 {auditLogs.map((log) => (
                   <tr key={log.id} className="hover:bg-slate-50/80">
-                    <td className="py-3 px-4 font-mono text-slate-500 text-[11px] whitespace-nowrap">
+                    <td className="py-3 px-4 font-mono text-slate-500 text-2xs whitespace-nowrap">
                       {new Date(log.timestamp).toLocaleString()}
                     </td>
                     <td className="py-3 px-4 text-slate-900 font-bold">{log.userName}</td>
                     <td className="py-3 px-4">
-                      <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-slate-100 text-indigo-700 border border-slate-200 font-semibold">
+                      <span className="font-mono text-2xs px-2 py-0.5 rounded bg-slate-100 text-brand-700 border border-slate-200 font-semibold">
                         {log.action}
                       </span>
                     </td>
