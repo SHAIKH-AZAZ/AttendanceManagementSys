@@ -18,14 +18,19 @@
   --ink-soft: #5a6a85;
   --steel: #7c8fac;
   --rule: #dfe5ef;
-  --accent: #1d4ed8;
-  --accent-tint: #e6eeff;
-  --accent-ink: #1e3a8a;
-  --good: #008c1f;
-  --good-tint: #e8fbda;
-  --good-ink: #006b18;
-  --bad: #c2410c;
-  --bad-tint: #fdece7;
+  /*
+   * Brand and status colours come from the MUI theme (src/theme.ts, TOKENS),
+   * which writes them to :root as --mui-palette-*. Change colours there only;
+   * the hex values here are fallbacks for the first paint.
+   */
+  --accent: var(--mui-palette-primary-main, #1d4ed8);
+  --accent-tint: var(--mui-palette-info-light, #e6eeff);
+  --accent-ink: var(--mui-palette-primary-dark, #1e3a8a);
+  --good: var(--mui-palette-success-main, #008c1f);
+  --good-tint: var(--mui-palette-success-light, #e8fbda);
+  --good-ink: var(--mui-palette-success-dark, #006b18);
+  --bad: var(--mui-palette-error-main, #c2410c);
+  --bad-tint: var(--mui-palette-error-light, #fdece7);
   --shadow: 0 1px 2px rgba(42, 53, 71, 0.06), 0 8px 24px rgba(42, 53, 71, 0.06);
   --shadow-lift: 0 2px 4px rgba(42, 53, 71, 0.08), 0 14px 32px rgba(42, 53, 71, 0.1);
   color-scheme: light;
@@ -122,7 +127,9 @@ svg.lucide {
   outline-offset: 2px;
 }
 /* Containers MUI focuses programmatically (dialogs, menus) shouldn't show a ring. */
-[tabindex="-1"]:focus-visible {
+[tabindex="-1"]:focus-visible,
+.MuiInputBase-input:focus-visible,
+.MuiSelect-select:focus-visible {
   outline: none;
 }
 
@@ -144,17 +151,6 @@ mark.bad {
   color: var(--bad);
 }
 
-/* Cards & buttons lift on hover */
-@media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  .lift {
-    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-  }
-  .lift:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-lift), 0 0 0 1px var(--accent-tint);
-  }
-}
-
 /* Keep autofilled inputs white instead of Chrome's blue */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
@@ -165,36 +161,16 @@ input:-webkit-autofill:focus {
   transition: background-color 9999s;
 }
 
-@keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-}
-.animate-fade-in {
-  animation: fade-in 0.16s ease-out;
-}
-@media (prefers-reduced-motion: reduce) {
-  .animate-fade-in {
-    animation: none;
-  }
-}
-
-/* Wide tables scroll sideways instead of crushing columns */
-.table-scroll {
-  overflow-x: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--rule) transparent;
-}
-.table-scroll > table {
-  min-width: 720px;
-}
-.table-scroll th {
-  white-space: nowrap;
-}
-
 /* Printing the board report: print only the report dialog, not the app behind it. */
 @media print {
+  html,
+  body {
+    background: #fff !important;
+    overflow: visible !important;
+  }
+  .report-dialog tr {
+    break-inside: avoid;
+  }
   body > *:not(.report-dialog) {
     display: none !important;
   }

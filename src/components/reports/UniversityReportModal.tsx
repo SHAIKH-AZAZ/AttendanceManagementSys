@@ -158,7 +158,7 @@ export const UniversityReportModal: React.FC<UniversityReportModalProps> = ({
           </div>
 
           {/* Student Roster Table */}
-          <div className="table-scroll border border-slate-300 rounded-lg">
+          <div className="overflow-x-auto border border-slate-300 rounded-lg">
             <table className="w-full text-left text-xs border-collapse">
               <thead className="bg-slate-100 text-slate-700 text-2xs uppercase font-bold tracking-wider border-b border-slate-300">
                 <tr>

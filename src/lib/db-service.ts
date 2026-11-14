@@ -51,14 +51,14 @@ class DatabaseState {
 // Global persistence across Next.js dev server hot-reloads
 declare global {
   // eslint-disable-next-line no-var
-  var __attendease_db_state_v4: DatabaseState | undefined;
+  var __attendease_db_state_v5: DatabaseState | undefined;
 }
 
 const state: DatabaseState =
-  global.__attendease_db_state_v4 || new DatabaseState();
+  global.__attendease_db_state_v5 || new DatabaseState();
 
-if (!global.__attendease_db_state_v4) {
-  global.__attendease_db_state_v4 = state;
+if (!global.__attendease_db_state_v5) {
+  global.__attendease_db_state_v5 = state;
 }
 
 type Actor = { id: string; fullName: string };
