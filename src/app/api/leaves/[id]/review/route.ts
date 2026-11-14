@@ -1,14 +1,17 @@
 import { NextResponse } from 'next/server';
 import { dbService } from '@/lib/db-service';
+import { requireUser } from '@/lib/auth';
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireUser('HOD');
+  if (auth instanceof NextResponse) return auth;
   try {
     const { id } = await params;
     const body = await request.json();
-    const { hodUserId, status, reviewComments } = body;
+    const { status, reviewComments } = body;
 
     if (!status || !['APPROVED', 'REJECTED'].includes(status)) {
       return NextResponse.json(
@@ -17,9 +20,17 @@ export async function POST(
       );
     }
 
+    const leave = (await dbService.getLeaves()).find((l) => l.id === id);
+    if (!leave) {
+      return NextResponse.json({ error: 'Leave application not found' }, { status: 404 });
+    }
+    if (leave.departmentId !== auth.departmentId) {
+      return NextResponse.json({ error: 'Leave belongs to another department.' }, { status: 403 });
+    }
+
     const result = await dbService.reviewLeave(
       id,
-      hodUserId || 'user-hod-1',
+      auth.id,
       status,
       reviewComments || `Leave ${status.toLowerCase()} by HOD.`
     );

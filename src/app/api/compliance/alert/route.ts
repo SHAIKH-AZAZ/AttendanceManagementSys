@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { dbService } from '@/lib/db-service';
+import { requireUser } from '@/lib/auth';
 
 export async function POST(request: Request) {
+  const auth = await requireUser('FACULTY', 'HOD');
+  if (auth instanceof NextResponse) return auth;
   try {
     const body = await request.json();
     const { studentId, studentName, enrollmentNumber, courseCode, percentage } =

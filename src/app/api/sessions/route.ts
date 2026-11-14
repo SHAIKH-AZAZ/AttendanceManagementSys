@@ -1,12 +1,17 @@
 import { NextResponse } from 'next/server';
 import { dbService } from '@/lib/db-service';
+import { requireUser } from '@/lib/auth';
 
 export async function GET(request: Request) {
+  const auth = await requireUser('FACULTY', 'HOD', 'ADMIN_STAFF');
+  if (auth instanceof NextResponse) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const courseId = searchParams.get('courseId') || undefined;
     const sectionId = searchParams.get('sectionId') || undefined;
-    const facultyId = searchParams.get('facultyId') || undefined;
+    // Faculty only see their own sessions.
+    const facultyId =
+      auth.role === 'FACULTY' ? auth.id : searchParams.get('facultyId') || undefined;
     const isLockedStr = searchParams.get('isLocked');
     const isLocked = isLockedStr !== null ? isLockedStr === 'true' : undefined;
 
@@ -27,6 +32,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireUser('FACULTY');
+  if (auth instanceof NextResponse) return auth;
   try {
     const body = await request.json();
     const {
@@ -35,7 +42,6 @@ export async function POST(request: Request) {
       trimesterId,
       courseId,
       sectionId,
-      facultyId,
       lectureDate,
       sessionNumber,
       sessionTitle,
@@ -49,12 +55,12 @@ export async function POST(request: Request) {
     }
 
     const session = await dbService.createSession({
-      campusId: campusId || 'campus-1',
-      departmentId: departmentId || 'dept-cs',
+      campusId: campusId || auth.campusId,
+      departmentId: departmentId || auth.departmentId || 'dept-cs',
       trimesterId: trimesterId || 'tri-2026-t2',
       courseId,
       sectionId,
-      facultyId: facultyId || 'user-faculty-1',
+      facultyId: auth.id,
       lectureDate,
       sessionNumber: Number(sessionNumber),
       sessionTitle: sessionTitle || `Lecture #${sessionNumber}`,

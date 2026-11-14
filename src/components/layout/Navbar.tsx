@@ -10,24 +10,19 @@ import {
   ChevronDown,
   UserCog,
   BookOpen,
-  Sparkles,
   LogOut,
 } from 'lucide-react';
 
 interface NavbarProps {
   currentUser: User;
-  onSwitchUser: (role: UserRole) => void;
   onLogout?: () => void;
-  allUsers: User[];
   activeTab: string;
   setActiveTab: (tab: string) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
-  onSwitchUser,
   onLogout,
-  allUsers,
   activeTab,
   setActiveTab,
 }) => {
@@ -64,13 +59,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const badge = getRoleBadge(currentUser.role);
   const BadgeIcon = badge.icon;
-
-  const roleUsers: { [key in UserRole]?: User } = {
-    FACULTY: allUsers.find((u) => u.role === 'FACULTY'),
-    STUDENT: allUsers.find((u) => u.role === 'STUDENT' && u.id === 'stu-4'),
-    HOD: allUsers.find((u) => u.role === 'HOD'),
-    ADMIN_STAFF: allUsers.find((u) => u.role === 'ADMIN_STAFF'),
-  };
 
   return (
     <header className="sticky top-0 z-50 backdrop-blur-md bg-white/95 border-b border-slate-200/90 shadow-xs">
@@ -257,7 +245,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </nav>
 
-          {/* Interactive Role Switcher & Sign Out */}
+          {/* Account Menu & Sign Out */}
           <div className="flex items-center gap-2">
             <div className="relative">
             <button
@@ -285,123 +273,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {roleDropdownOpen && (
               <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-white border border-slate-200 shadow-2xl py-2 z-50 ring-1 ring-black/5 animate-fade-in">
-                <div className="px-3 py-2 border-b border-slate-100">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                    <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                    Switch Role Demo Context
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Experience AttendEASE365 from any role perspective
-                  </p>
-                </div>
-
-                <div className="p-1 space-y-1">
-                  {/* Faculty */}
-                  <button
-                    onClick={() => {
-                      onSwitchUser('FACULTY');
-                      setActiveTab('marking');
-                      setRoleDropdownOpen(false);
-                    }}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all ${
-                      currentUser.role === 'FACULTY'
-                        ? 'bg-indigo-50 border border-indigo-200'
-                        : 'hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
-                      <BookOpen className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-slate-900">
-                        {roleUsers.FACULTY?.fullName || 'Prof. Rajesh Sharma'}
-                      </div>
-                      <div className="text-[10px] text-slate-500 font-medium">
-                        Faculty • Mark classes & lock attendance
-                      </div>
-                    </div>
-                  </button>
-
-                  {/* Student */}
-                  <button
-                    onClick={() => {
-                      onSwitchUser('STUDENT');
-                      setActiveTab('student-overview');
-                      setRoleDropdownOpen(false);
-                    }}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all ${
-                      currentUser.role === 'STUDENT'
-                        ? 'bg-emerald-50 border border-emerald-200'
-                        : 'hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                      <GraduationCap className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-slate-900">
-                        Devendra Joshi (CS-2026-004)
-                      </div>
-                      <div className="text-[10px] text-slate-500 font-medium">
-                        Student • View stats & apply for leaves
-                      </div>
-                    </div>
-                  </button>
-
-                  {/* HOD */}
-                  <button
-                    onClick={() => {
-                      onSwitchUser('HOD');
-                      setActiveTab('hod-overview');
-                      setRoleDropdownOpen(false);
-                    }}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all ${
-                      currentUser.role === 'HOD'
-                        ? 'bg-amber-50 border border-amber-200'
-                        : 'hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center">
-                      <ShieldCheck className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-slate-900">
-                        {roleUsers.HOD?.fullName || 'Dr. Sunita Rao'}
-                      </div>
-                      <div className="text-[10px] text-slate-500 font-medium">
-                        HOD • Department monitor & leave approvals
-                      </div>
-                    </div>
-                  </button>
-
-                  {/* Admin */}
-                  <button
-                    onClick={() => {
-                      onSwitchUser('ADMIN_STAFF');
-                      setActiveTab('admin-config');
-                      setRoleDropdownOpen(false);
-                    }}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all ${
-                      currentUser.role === 'ADMIN_STAFF'
-                        ? 'bg-purple-50 border border-purple-200'
-                        : 'hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center">
-                      <UserCog className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-slate-900">
-                        {roleUsers.ADMIN_STAFF?.fullName || 'Arun Kulkarni'}
-                      </div>
-                      <div className="text-[10px] text-slate-500 font-medium">
-                        Admin • Hierarchy, CSV imports & board reports
-                      </div>
-                    </div>
-                  </button>
-                </div>
-
-                <div className="mt-2 pt-2 border-t border-slate-100 px-2 space-y-1">
+                <div className="px-2 space-y-1">
                   {onLogout && (
                     <button
                       onClick={() => {

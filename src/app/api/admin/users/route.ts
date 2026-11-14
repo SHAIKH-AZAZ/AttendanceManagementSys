@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { dbService } from '@/lib/db-service';
+import { requireUser, toPublicUser } from '@/lib/auth';
 import { UserRole } from '@/types';
 
 export async function GET(request: Request) {
+  const auth = await requireUser('ADMIN_STAFF');
+  if (auth instanceof NextResponse) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const role = searchParams.get('role') as UserRole | null;
@@ -33,7 +36,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       total: users.length,
-      users,
+      users: users.map(toPublicUser),
     });
   } catch (error) {
     return NextResponse.json(
@@ -44,6 +47,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireUser('ADMIN_STAFF');
+  if (auth instanceof NextResponse) return auth;
   try {
     const body = await request.json();
     const {
@@ -80,7 +85,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         message: 'User created successfully.',
-        user: newUser,
+        user: toPublicUser(newUser),
       },
       { status: 201 }
     );

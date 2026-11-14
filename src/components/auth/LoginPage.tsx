@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { UserRole } from '@/types';
 import {
   GraduationCap,
   Lock,
@@ -18,9 +17,9 @@ import {
 } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
-  const { login, loginAs, isLoading } = useAuth();
-  const [email, setEmail] = useState('rajesh.sharma@univ.edu');
-  const [password, setPassword] = useState('faculty123');
+  const { login, isLoading } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,13 +32,11 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleQuickLogin = async (role: UserRole) => {
+  // Dev convenience: fills the form; login still goes through the real password check.
+  const fillDemo = (demoEmail: string, demoPassword: string) => {
     setError(null);
-    try {
-      await loginAs(role);
-    } catch (err) {
-      setError((err as Error).message || 'SSO Login failed');
-    }
+    setEmail(demoEmail);
+    setPassword(demoPassword);
   };
 
   return (
@@ -99,9 +96,6 @@ export const LoginPage: React.FC = () => {
                 >
                   Password
                 </label>
-                <span className="text-[11px] text-slate-400 font-medium">
-                  Default: role123
-                </span>
               </div>
               <div className="relative">
                 <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
@@ -128,20 +122,21 @@ export const LoginPage: React.FC = () => {
             </button>
           </form>
 
-          {/* Quick SSO Logins */}
+          {/* Demo accounts (hidden in production builds) */}
+          {process.env.NODE_ENV !== 'production' && (
           <div className="pt-4 border-t border-slate-200">
             <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 mb-2.5">
               <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-              1-Click Demo SSO Personas
+              Demo Accounts
             </div>
             <p className="text-[11px] text-slate-500 mb-3">
-              Instant authentication without entering credentials:
+              Click to fill credentials, then sign in:
             </p>
 
             <div className="grid grid-cols-2 gap-2 text-xs">
               <button
                 type="button"
-                onClick={() => handleQuickLogin('FACULTY')}
+                onClick={() => fillDemo('rajesh.sharma@univ.edu', 'faculty123')}
                 disabled={isLoading}
                 className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 transition-all text-left flex items-start gap-2"
               >
@@ -156,7 +151,7 @@ export const LoginPage: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => handleQuickLogin('STUDENT')}
+                onClick={() => fillDemo('devendra.joshi@univ.edu', 'student123')}
                 disabled={isLoading}
                 className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-200 transition-all text-left flex items-start gap-2"
               >
@@ -171,7 +166,7 @@ export const LoginPage: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => handleQuickLogin('HOD')}
+                onClick={() => fillDemo('sunita.rao@univ.edu', 'hod123')}
                 disabled={isLoading}
                 className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-amber-50 hover:border-amber-200 transition-all text-left flex items-start gap-2"
               >
@@ -186,7 +181,7 @@ export const LoginPage: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => handleQuickLogin('ADMIN_STAFF')}
+                onClick={() => fillDemo('arun.kulkarni@univ.edu', 'admin123')}
                 disabled={isLoading}
                 className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-purple-50 hover:border-purple-200 transition-all text-left flex items-start gap-2"
               >
@@ -200,6 +195,7 @@ export const LoginPage: React.FC = () => {
               </button>
             </div>
           </div>
+          )}
         </div>
 
         <div className="mt-6 text-center text-[11px] text-slate-500">

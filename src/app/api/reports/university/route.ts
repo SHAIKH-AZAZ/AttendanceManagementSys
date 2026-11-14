@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { dbService } from '@/lib/db-service';
+import { requireUser } from '@/lib/auth';
 
 export async function GET(request: Request) {
+  const auth = await requireUser('FACULTY', 'HOD', 'ADMIN_STAFF');
+  if (auth instanceof NextResponse) return auth;
   try {
     const { searchParams } = new URL(request.url);
     const courseId = searchParams.get('courseId') || 'course-ds';
