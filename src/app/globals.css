@@ -3,8 +3,8 @@
 /*
  * Blueprint SaaS tokens. Components keep using Tailwind utilities; the
  * palettes below are remapped so the whole app follows one system:
- *   brand-*  → accent green (actions, highlights, "present"/good state)
- *   emerald-* → same green family (success)
+ *   brand-*  → accent blue (actions, active tabs, highlights)
+ *   emerald-* → green (present / success / eligible)
  *   rose-*   → --bad (absent, errors, defaulters)
  *   slate-*  → ink / ink-soft / steel / rule blue-greys
  */
@@ -16,11 +16,12 @@
   --ink-soft: #5a6a85;
   --steel: #7c8fac;
   --rule: #dfe5ef;
-  --accent: #008c1f;
-  --accent-tint: #e8fbda;
-  --accent-ink: #006b18;
-  --accent-2: #49beff;
-  --dim: #2563eb;
+  --accent: #1d4ed8;
+  --accent-tint: #e6eeff;
+  --accent-ink: #1e3a8a;
+  --good: #008c1f;
+  --good-tint: #e8fbda;
+  --good-ink: #006b18;
   --bad: #c2410c;
   --bad-tint: #fdece7;
   --shadow: 0 1px 2px rgba(42, 53, 71, 0.06), 0 8px 24px rgba(42, 53, 71, 0.06);
@@ -31,25 +32,25 @@
 @theme inline {
   --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
 
-  --color-brand-50: #f1fdea;
+  --color-brand-50: #f3f7ff;
   --color-brand-100: var(--accent-tint);
-  --color-brand-200: #c6f0b3;
-  --color-brand-300: #8fdc7a;
-  --color-brand-400: #3fb94f;
-  --color-brand-500: #12a32d;
+  --color-brand-200: #c7d7fe;
+  --color-brand-300: #93b4fd;
+  --color-brand-400: #5b8af7;
+  --color-brand-500: #3266ea;
   --color-brand-600: var(--accent);
   --color-brand-700: var(--accent-ink);
-  --color-brand-800: #0a5418;
-  --color-brand-900: #0b4416;
+  --color-brand-800: #1e3170;
+  --color-brand-900: #1a2a5c;
 
   --color-emerald-50: #f1fdea;
-  --color-emerald-100: var(--accent-tint);
+  --color-emerald-100: var(--good-tint);
   --color-emerald-200: #c6f0b3;
   --color-emerald-300: #8fdc7a;
   --color-emerald-400: #3fb94f;
   --color-emerald-500: #12a32d;
-  --color-emerald-600: var(--accent);
-  --color-emerald-700: var(--accent-ink);
+  --color-emerald-600: var(--good);
+  --color-emerald-700: var(--good-ink);
   --color-emerald-800: #0a5418;
   --color-emerald-900: #0b4416;
 
@@ -76,7 +77,6 @@
   --color-slate-900: #212a39;
   --color-slate-950: #161d28;
 
-  --color-dim: var(--dim);
 
   /* Shape: cards 12px, buttons/inputs 8px */
   --radius-md: 6px;

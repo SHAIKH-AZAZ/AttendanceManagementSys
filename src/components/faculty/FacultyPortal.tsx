@@ -446,9 +446,9 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
               <div className="text-2xs text-blue-800 font-semibold">Excused (E)</div>
               <div className="text-base font-bold text-blue-700">{summary.excused}</div>
             </div>
-            <div className="bg-brand-50/60 p-2.5 rounded-xl border border-brand-200 shadow-2xs">
-              <div className="text-2xs text-brand-800 font-semibold">Medical (M)</div>
-              <div className="text-base font-bold text-brand-700">{summary.medical}</div>
+            <div className="bg-violet-50/60 p-2.5 rounded-xl border border-violet-200 shadow-2xs">
+              <div className="text-2xs text-violet-800 font-semibold">Medical (M)</div>
+              <div className="text-base font-bold text-violet-700">{summary.medical}</div>
             </div>
             <div className="bg-sky-50/60 p-2.5 rounded-xl border border-sky-200 shadow-2xs">
               <div className="text-2xs text-sky-800 font-semibold">On duty (O)</div>
@@ -534,7 +534,7 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
                               : stu.status === 'EXCUSED'
                               ? 'bg-blue-50 text-blue-700 border-blue-200'
                               : stu.status === 'MEDICAL_LEAVE'
-                              ? 'bg-brand-50 text-brand-700 border-brand-200'
+                              ? 'bg-violet-50 text-violet-700 border-violet-200'
                               : 'bg-sky-50 text-sky-700 border-sky-200'
                           }`}
                         >
@@ -599,7 +599,7 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
                             title="Medical Leave"
                             className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
                               stu.status === 'MEDICAL_LEAVE'
-                                ? 'bg-brand-600 text-white shadow-sm ring-1 ring-brand-700'
+                                ? 'bg-violet-600 text-white shadow-sm ring-1 ring-violet-700'
                                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                             } ${isLocked ? 'opacity-40 cursor-not-allowed' : ''}`}
                           >
