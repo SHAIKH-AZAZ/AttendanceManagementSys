@@ -15,7 +15,7 @@ export async function POST() {
       action: 'USER_LOGOUT',
       entityName: 'Session',
       entityId: user.id,
-      details: `${user.fullName} (${user.role}) logged out.`,
+      details: "Signed out.",
     });
   }
 

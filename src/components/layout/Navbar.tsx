@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { User, UserRole } from '@/types';
+import { TABS } from '@/lib/navigation';
 import { BookOpen, ChevronDown, GraduationCap, LogOut, ShieldCheck, UserCog } from 'lucide-react';
 
 interface NavbarProps {
@@ -16,30 +17,6 @@ const ROLE_META: Record<UserRole, { label: string; icon: typeof BookOpen }> = {
   STUDENT: { label: 'Student', icon: GraduationCap },
   HOD: { label: 'Head of department', icon: ShieldCheck },
   ADMIN_STAFF: { label: 'Admin staff', icon: UserCog },
-};
-
-const TABS: Record<UserRole, { id: string; label: string }[]> = {
-  FACULTY: [
-    { id: 'marking', label: 'Mark attendance' },
-    { id: 'history', label: 'Past sessions' },
-    { id: 'compliance', label: '75% defaulters' },
-  ],
-  STUDENT: [
-    { id: 'student-overview', label: 'My attendance' },
-    { id: 'student-leaves', label: 'Leave' },
-  ],
-  HOD: [
-    { id: 'hod-overview', label: 'Department overview' },
-    { id: 'hod-leaves', label: 'Leave approvals' },
-    { id: 'hod-defaulters', label: 'Defaulter actions' },
-  ],
-  ADMIN_STAFF: [
-    { id: 'admin-config', label: 'Academic hierarchy' },
-    { id: 'admin-import', label: 'Bulk import' },
-    { id: 'admin-reports', label: 'University reports' },
-    { id: 'admin-users', label: 'Users' },
-    { id: 'admin-audit', label: 'Audit log' },
-  ],
 };
 
 const initials = (name: string) =>

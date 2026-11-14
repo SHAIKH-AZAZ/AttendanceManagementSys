@@ -1,539 +1,491 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMeta } from '@/hooks/useMeta';
+import type { PortalProps } from '@/lib/navigation';
+import type { SystemAuditLog, User, UserRole } from '@/types';
 import {
-  SystemAuditLog,
-} from '@/types';
+  Badge,
+  Button,
+  Card,
+  CardHeader,
+  EmptyState,
+  Field,
+  Notice,
+  useTabNotice,
+  PageHeader,
+  StatCard,
+  inputClass,
+  selectClass,
+} from '@/components/ui';
 import {
-  Building2,
-  Layers,
-  BookOpen,
-  Upload,
-  FileSpreadsheet,
-  CheckCircle2,
   AlertTriangle,
-  XCircle,
-  History,
-  Sparkles,
-  ExternalLink,
   Award,
+  BookOpen,
+  Building2,
+  CheckCircle2,
+  FileSpreadsheet,
+  History,
+  Search,
+  Upload,
+  UserPlus,
+  Users,
+  XCircle,
 } from 'lucide-react';
 import { UserManagementTab } from './UserManagementTab';
 
-interface AdminPortalProps {
-  activeTab: string;
-  onOpenUniversityReport?: (courseId: string, sectionId: string) => void;
+interface ImportPreview {
+  totalRecords: number;
+  validCount: number;
+  duplicateCount: number;
+  invalidCount: number;
+  duplicates: { row: number; enrollmentNumber: string; reason: string }[];
+  invalidRecords: { row: number; reason: string }[];
 }
 
-export const AdminPortal: React.FC<AdminPortalProps> = ({
-  activeTab,
-  onOpenUniversityReport,
-}) => {
-  const [auditLogs, setAuditLogs] = useState<SystemAuditLog[]>([]);
-  const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
-
-  // Bulk Import state
-  const [importSectionId, setImportSectionId] = useState('sec-ds-a');
-  const [importText, setImportText] = useState('');
-  const [previewResult, setPreviewResult] = useState<any | null>(null);
-  const [isImporting, setIsImporting] = useState(false);
-
-  const fetchMetas = async () => {
-    try {
-      const logsRes = await fetch('/api/audit-logs');
-      const logsJson = await logsRes.json();
-      if (logsJson.logs) setAuditLogs(logsJson.logs);
-    } catch (err) {
-      console.error('Error fetching admin data:', err);
-    }
-  };
-
-  useEffect(() => {
-    fetchMetas();
-  }, []);
-
-  const handleLoadSampleCSV = () => {
-    const sample = `CS-2026-101, Harshit Mehta, harshit.m@univ.edu
+const SAMPLE_CSV = `CS-2026-101, Harshit Mehta, harshit.m@univ.edu
 CS-2026-102, Riya Kapoor, riya.k@univ.edu
 CS-2026-001, Duplicate Aarav, aarav.dupe@univ.edu
 , Missing Roll Student, invalid@univ.edu
 CS-2026-103, Tushar Saxena, tushar.s@univ.edu`;
-    setImportText(sample);
-    setPreviewResult(null);
-  };
 
-  const handleValidateCSV = async () => {
-    if (!importText.trim()) return;
-
-    const lines = importText.trim().split('\n');
-    const parsedStudents = lines.map((line) => {
-      const parts = line.split(',').map((p) => p.trim());
-      return {
-        enrollmentNumber: parts[0] || '',
-        fullName: parts[1] || '',
-        email: parts[2] || '',
-      };
+const parseCsv = (text: string) =>
+  text
+    .trim()
+    .split('\n')
+    .filter((l) => l.trim())
+    .map((line) => {
+      const [enrollmentNumber = '', fullName = '', email = ''] = line.split(',').map((p) => p.trim());
+      return { enrollmentNumber, fullName, email };
     });
 
-    setIsImporting(true);
+const when = (iso: string) =>
+  new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+
+const ROLE_LABEL: Record<UserRole, string> = {
+  FACULTY: 'Faculty',
+  STUDENT: 'Students',
+  HOD: 'HODs',
+  ADMIN_STAFF: 'Admin staff',
+};
+
+export const AdminPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, onOpenUniversityReport }) => {
+  const { meta, course, classLabel } = useMeta();
+  const [users, setUsers] = useState<User[]>([]);
+  const [auditLogs, setAuditLogs] = useState<SystemAuditLog[]>([]);
+  const { notice, setNotice } = useTabNotice(activeTab);
+
+  // Import
+  const [importSectionId, setImportSectionId] = useState('');
+  const [importText, setImportText] = useState('');
+  const [preview, setPreview] = useState<ImportPreview | null>(null);
+  const [importing, setImporting] = useState(false);
+
+  // Audit
+  const [auditQuery, setAuditQuery] = useState('');
+  const [auditAction, setAuditAction] = useState('ALL');
+
+  const load = useCallback(async () => {
+    const [u, a] = await Promise.all([fetch('/api/admin/users'), fetch('/api/audit-logs')]);
+    if (u.ok) setUsers((await u.json()).users ?? []);
+    if (a.ok) setAuditLogs((await a.json()).logs ?? []);
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // Refresh counts when coming back to the overview (users may have changed).
+  useEffect(() => {
+    if (activeTab === 'admin-overview' || activeTab === 'admin-audit') load();
+  }, [activeTab, load]);
+
+  useEffect(() => {
+    if (!importSectionId && meta?.sections[0]) setImportSectionId(meta.sections[0].id);
+  }, [meta, importSectionId]);
+
+  const runImport = async (previewOnly: boolean) => {
+    const students = parseCsv(importText);
+    if (!students.length) return;
+    setImporting(true);
     try {
       const res = await fetch('/api/admin/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sectionId: importSectionId,
-          students: parsedStudents,
-          isPreviewOnly: true,
-        }),
+        body: JSON.stringify({ sectionId: importSectionId, students, isPreviewOnly: previewOnly }),
       });
       const data = await res.json();
-      if (res.ok) {
-        setPreviewResult(data);
-        setNotification({
-          type: 'info',
-          message: `Validation complete: ${data.validCount} valid, ${data.duplicateCount} duplicates, ${data.invalidCount} invalid rows.`,
-        });
+      if (!res.ok) {
+        setNotice({ tone: 'error', text: data.error || 'Import failed.' });
+      } else if (previewOnly) {
+        setPreview(data);
       } else {
-        setNotification({ type: 'error', message: data.error || 'Validation failed.' });
-      }
-    } catch {
-      setNotification({ type: 'error', message: 'Error validating roster.' });
-    } finally {
-      setIsImporting(false);
-    }
-  };
-
-  const handleCommitImport = async () => {
-    if (!previewResult || previewResult.validCount === 0) return;
-
-    setIsImporting(true);
-    try {
-      const lines = importText.trim().split('\n');
-      const parsedStudents = lines.map((line) => {
-        const parts = line.split(',').map((p) => p.trim());
-        return {
-          enrollmentNumber: parts[0] || '',
-          fullName: parts[1] || '',
-          email: parts[2] || '',
-        };
-      });
-
-      const res = await fetch('/api/admin/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sectionId: importSectionId,
-          students: parsedStudents,
-          isPreviewOnly: false,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setNotification({
-          type: 'success',
-          message: data.message || 'Roster committed successfully into section.',
-        });
+        setNotice({ tone: 'success', text: data.message || 'Students imported.' });
         setImportText('');
-        setPreviewResult(null);
-        fetchMetas();
-      } else {
-        setNotification({ type: 'error', message: data.error || 'Import failed.' });
+        setPreview(null);
+        load();
       }
-    } catch {
-      setNotification({ type: 'error', message: 'Network error committing import.' });
     } finally {
-      setIsImporting(false);
+      setImporting(false);
     }
   };
+
+  const actions = useMemo(() => Array.from(new Set(auditLogs.map((l) => l.action))).sort(), [auditLogs]);
+  const visibleLogs = useMemo(() => {
+    const q = auditQuery.trim().toLowerCase();
+    return [...auditLogs]
+      .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+      .filter(
+        (l) =>
+          (auditAction === 'ALL' || l.action === auditAction) &&
+          (!q || `${l.userName} ${l.details} ${l.entityName}`.toLowerCase().includes(q))
+      );
+  }, [auditLogs, auditQuery, auditAction]);
+
+  const active = users.filter((u) => u.isActive);
 
   return (
-    <div className="space-y-6">
-      {/* Top Banner */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-1">
-            <span>Configured campuses</span>
-            <Building2 className="w-4 h-4 text-brand-600" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900">3 Campuses</div>
-          <div className="text-xs text-slate-500 mt-1 font-medium">North, South, City</div>
-        </div>
-
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-1">
-            <span>Departments</span>
-            <Layers className="w-4 h-4 text-brand-600" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900">4 Departments</div>
-          <div className="text-xs text-slate-500 mt-1 font-medium">Data-isolated tenants</div>
-        </div>
-
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-1">
-            <span>Active term</span>
-            <BookOpen className="w-4 h-4 text-brand-600" />
-          </div>
-          <div className="text-base font-bold text-slate-900">Trimester 2 (2026-27)</div>
-          <div className="text-xs text-emerald-600 mt-1 font-bold">● Active Session</div>
-        </div>
-
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 font-semibold mb-1">
-            <span>Audit trail entries</span>
-            <History className="w-4 h-4 text-amber-600" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900">{auditLogs.length} Events</div>
-          <div className="text-xs text-slate-500 mt-1 font-medium">System-wide immutable log</div>
-        </div>
-      </div>
-
-      {notification && (
-        <div
-          className={`p-3.5 rounded-2xl border text-xs flex items-center justify-between ${
-            notification.type === 'success'
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-              : notification.type === 'error'
-              ? 'bg-rose-50 border-rose-200 text-rose-800'
-              : 'bg-brand-50 border-brand-200 text-brand-800'
-          }`}
-        >
-          <div className="flex items-center gap-2 font-medium">
-            <Sparkles className="w-4 h-4 shrink-0" />
-            <span>{notification.message}</span>
-          </div>
-          <button
-            onClick={() => setNotification(null)}
-            className="text-slate-400 hover:text-slate-700 font-bold"
-          >
-            ×
-          </button>
-        </div>
+    <div>
+      {notice && (
+        <Notice tone={notice.tone} onDismiss={() => setNotice(null)} className="mb-5">
+          {notice.text}
+        </Notice>
       )}
 
-      {/* Tab: Academic Hierarchy */}
-      {activeTab === 'admin-config' && (
-        <div className="space-y-6">
-          <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs">
-            <h3 className="text-sm font-bold text-slate-900 mb-1">Multi-Campus & Department Topology</h3>
-            <p className="text-xs text-slate-500 mb-4">
-              Strict row-level isolation guarantees that department records remain separate across campuses.
-            </p>
+      {/* ------------------------------------------------------------ Overview */}
+      {activeTab === 'admin-overview' && (
+        <>
+          <PageHeader
+            title="Administration"
+            description="Accounts, class rosters, academic structure and the audit trail."
+            actions={
+              <>
+                <Button icon={Upload} onClick={() => setActiveTab('admin-import')}>Import students</Button>
+                <Button variant="primary" icon={UserPlus} onClick={() => setActiveTab('admin-users')}>Manage users</Button>
+              </>
+            }
+          />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {(['STUDENT', 'FACULTY', 'HOD', 'ADMIN_STAFF'] as UserRole[]).map((r) => (
+              <StatCard
+                key={r}
+                label={ROLE_LABEL[r]}
+                value={active.filter((u) => u.role === r).length}
+                hint="Active accounts"
+                icon={Users}
+                onClick={() => setActiveTab('admin-users')}
+              />
+            ))}
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+            <StatCard label="Campuses" value={meta?.campuses.length ?? '—'} icon={Building2} onClick={() => setActiveTab('admin-structure')} />
+            <StatCard label="Departments" value={meta?.departments.length ?? '—'} icon={Building2} onClick={() => setActiveTab('admin-structure')} />
+            <StatCard label="Classes" value={meta?.sections.length ?? '—'} icon={BookOpen} onClick={() => setActiveTab('admin-reports')} />
+            <StatCard
+              label="Inactive accounts"
+              value={users.length - active.length}
+              tone={users.length - active.length ? 'warn' : 'neutral'}
+              icon={AlertTriangle}
+              onClick={() => setActiveTab('admin-users')}
+            />
+          </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <div className="flex items-center gap-2 text-brand-700 text-xs font-bold">
-                  <Building2 className="w-4 h-4" /> Campus 1: North Campus
-                </div>
-                <div className="mt-2 space-y-1.5 text-xs text-slate-700 font-medium">
-                  <div className="p-2 rounded bg-white border border-slate-200/80 flex justify-between shadow-2xs">
-                    <span>CSE (Computer Science)</span>
-                    <span className="text-emerald-700 font-bold">Active</span>
-                  </div>
-                  <div className="p-2 rounded bg-white border border-slate-200/80 flex justify-between shadow-2xs">
-                    <span>IT (Information Tech)</span>
-                    <span className="text-emerald-700 font-bold">Active</span>
-                  </div>
-                  <div className="p-2 rounded bg-white border border-slate-200/80 flex justify-between shadow-2xs">
-                    <span>ECE (Electronics & Comm)</span>
-                    <span className="text-emerald-700 font-bold">Active</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <div className="flex items-center gap-2 text-brand-700 text-xs font-bold">
-                  <Building2 className="w-4 h-4" /> Campus 2: South Campus
-                </div>
-                <div className="mt-2 space-y-1.5 text-xs text-slate-700 font-medium">
-                  <div className="p-2 rounded bg-white border border-slate-200/80 flex justify-between shadow-2xs">
-                    <span>CIVIL (Civil Engineering)</span>
-                    <span className="text-emerald-700 font-bold">Active</span>
-                  </div>
-                  <div className="p-2 rounded bg-white border border-slate-200/80 flex justify-between shadow-2xs">
-                    <span>CSE (Computer Science)</span>
-                    <span className="text-emerald-700 font-bold">Active</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                <div className="flex items-center gap-2 text-brand-700 text-xs font-bold">
-                  <Building2 className="w-4 h-4" /> Campus 3: City Campus
-                </div>
-                <div className="mt-2 space-y-1.5 text-xs text-slate-700 font-medium">
-                  <div className="p-2 rounded bg-white border border-slate-200/80 flex justify-between shadow-2xs">
-                    <span>IT (Information Tech)</span>
-                    <span className="text-emerald-700 font-bold">Active</span>
-                  </div>
-                  <div className="p-2 rounded bg-white border border-slate-200/80 flex justify-between shadow-2xs">
-                    <span>CIVIL (Civil Engineering)</span>
-                    <span className="text-emerald-700 font-bold">Active</span>
-                  </div>
-                </div>
-              </div>
+          <Card className="mt-5" padded={false}>
+            <div className="p-5 pb-3">
+              <CardHeader
+                title="Recent activity"
+                actions={<Button size="sm" variant="ghost" onClick={() => setActiveTab('admin-audit')}>Full audit log</Button>}
+              />
             </div>
-          </div>
-        </div>
+            {auditLogs.length === 0 ? (
+              <EmptyState icon={History} title="No activity yet" />
+            ) : (
+              <ul className="divide-y divide-slate-100 border-t border-slate-200">
+                {[...auditLogs]
+                  .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+                  .slice(0, 6)
+                  .map((l) => (
+                    <li key={l.id} className="px-5 py-3 grid sm:grid-cols-[8rem_11rem_1fr] gap-x-3 gap-y-0.5 items-baseline">
+                      <span className="text-xs text-slate-500 whitespace-nowrap">{when(l.timestamp)}</span>
+                      <span className="text-sm font-semibold text-slate-800">{l.userName}</span>
+                      <span className="text-sm text-slate-600 min-w-0 break-words">{l.details}</span>
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </Card>
+        </>
       )}
 
-      {/* Tab: Bulk CSV / Excel Import Engine */}
+      {/* --------------------------------------------------------------- Users */}
+      {activeTab === 'admin-users' && <UserManagementTab />}
+
+      {/* ------------------------------------------------- Academic structure */}
+      {activeTab === 'admin-structure' && (
+        <>
+          <PageHeader title="Academic structure" description="Campuses, departments, courses and the classes taught this term." />
+          {!meta ? (
+            <Card><p className="text-sm text-slate-500">Loading…</p></Card>
+          ) : (
+            <div className="space-y-5">
+              {meta.campuses.map((campus) => {
+                const depts = meta.departments.filter((d) => d.campusId === campus.id);
+                return (
+                  <Card key={campus.id}>
+                    <CardHeader
+                      title={
+                        <span className="flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-brand-600" /> {campus.name}
+                        </span>
+                      }
+                      description={campus.address}
+                      actions={<Badge tone={campus.isActive ? 'good' : 'neutral'}>{campus.isActive ? 'Active' : 'Inactive'}</Badge>}
+                    />
+                    {depts.length === 0 ? (
+                      <p className="mt-4 text-sm text-slate-500">No departments.</p>
+                    ) : (
+                      <div className="mt-4 grid md:grid-cols-2 gap-3">
+                        {depts.map((d) => {
+                          const courses = meta.courses.filter((c) => c.departmentId === d.id);
+                          return (
+                            <div key={d.id} className="rounded-xl border border-slate-200 p-4">
+                              <div className="flex items-center justify-between gap-2">
+                                <h4 className="font-semibold text-slate-800">{d.name}</h4>
+                                <Badge>{d.code}</Badge>
+                              </div>
+                              {courses.length === 0 ? (
+                                <p className="mt-2 text-xs text-slate-500">No courses yet.</p>
+                              ) : (
+                                <ul className="mt-3 space-y-2">
+                                  {courses.map((c) => {
+                                    const secs = meta.sections.filter((s) => s.courseId === c.id);
+                                    return (
+                                      <li key={c.id} className="text-sm">
+                                        <span className="font-mono text-xs text-slate-500 mr-2">{c.code}</span>
+                                        <span className="text-slate-800">{c.title}</span>
+                                        <span className="block text-xs text-slate-500 mt-0.5">
+                                          {secs.length
+                                            ? secs.map((s) => `${s.name} — ${s.facultyName}, ${s.studentCount} students`).join(' · ')
+                                            : 'No classes scheduled'}
+                                        </span>
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ---------------------------------------------------------- Bulk import */}
       {activeTab === 'admin-import' && (
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-5">
-          <div>
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5 text-brand-600" />
-              Bulk student import
-            </h3>
-            <p className="text-xs text-slate-500 mt-1">
-              Supports CSV & Excel rosters. Detects duplicate enrollment numbers, checks formatting, and
-              validates records before commit.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {/* Input & Upload */}
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Target course & section
-                </label>
-                <select
-                  value={importSectionId}
-                  onChange={(e) => setImportSectionId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500"
-                >
-                  <option value="sec-ds-a">Data Structures (CS-301) - Section A</option>
-                  <option value="sec-ds-b">Data Structures (CS-301) - Section B</option>
-                  <option value="sec-dbms-a">Database Management (CS-302) - Section A</option>
-                </select>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-bold text-slate-700">
-                    Paste CSV Rows (Enrollment Number, Full Name, Email)
-                  </label>
-                  <button
-                    onClick={handleLoadSampleCSV}
-                    className="text-2xs text-brand-600 hover:text-brand-800 font-bold"
+        <>
+          <PageHeader
+            title="Bulk import"
+            description="Add students to a class roster from CSV. Rows are checked before anything is saved."
+          />
+          <div className="grid lg:grid-cols-2 gap-5">
+            <Card>
+              <CardHeader title="1. Paste rows" description="One student per line: roll number, full name, email." />
+              <div className="mt-4 space-y-4">
+                <Field label="Class" htmlFor="import-class">
+                  <select
+                    id="import-class"
+                    value={importSectionId}
+                    onChange={(e) => {
+                      setImportSectionId(e.target.value);
+                      setPreview(null);
+                    }}
+                    className={inputClass}
                   >
-                    Load sample CSV
-                  </button>
+                    {meta?.sections.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {classLabel(s.id)} ({s.studentCount} students)
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="CSV rows" htmlFor="import-csv">
+                  <textarea
+                    id="import-csv"
+                    rows={8}
+                    value={importText}
+                    onChange={(e) => {
+                      setImportText(e.target.value);
+                      setPreview(null);
+                    }}
+                    placeholder="CS-2026-101, Harshit Mehta, harshit.m@univ.edu"
+                    className={`${inputClass} h-auto py-2 font-mono text-xs`}
+                  />
+                </Field>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setImportText(SAMPLE_CSV);
+                      setPreview(null);
+                    }}
+                  >
+                    Load sample
+                  </Button>
+                  <Button icon={CheckCircle2} loading={importing && !preview} disabled={!importText.trim()} onClick={() => runImport(true)}>
+                    Check rows
+                  </Button>
                 </div>
-                <textarea
-                  rows={6}
-                  value={importText}
-                  onChange={(e) => setImportText(e.target.value)}
-                  placeholder={`CS-2026-101, Harshit Mehta, harshit.m@univ.edu\nCS-2026-102, Riya Kapoor, riya.k@univ.edu\nCS-2026-001, Duplicate Student, ...`}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs font-mono text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              </div>
+            </Card>
+
+            <Card>
+              <CardHeader title="2. Review and import" description="No duplicate roll numbers are allowed within a class." />
+              {!preview ? (
+                <EmptyState icon={FileSpreadsheet} title="Nothing checked yet" description="Paste rows and choose Check rows to see what will be imported." />
+              ) : (
+                <div className="mt-4 space-y-3">
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    {[
+                      ['Rows', preview.totalRecords, 'text-slate-800'],
+                      ['Ready', preview.validCount, 'text-emerald-700'],
+                      ['Problems', preview.duplicateCount + preview.invalidCount, 'text-rose-600'],
+                    ].map(([k, v, c]) => (
+                      <div key={k as string} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <div className="text-2xs text-slate-500">{k}</div>
+                        <div className={`text-xl font-bold ${c}`}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {[...preview.duplicates.map((d) => ({ row: d.row, text: `${d.enrollmentNumber}: ${d.reason}`, icon: AlertTriangle, cls: 'text-amber-700' })),
+                    ...preview.invalidRecords.map((d) => ({ row: d.row, text: d.reason, icon: XCircle, cls: 'text-rose-600' }))]
+                    .sort((a, b) => a.row - b.row)
+                    .map((p) => (
+                      <div key={`${p.row}-${p.text}`} className="flex items-start gap-2 text-sm">
+                        <p.icon className={`w-4 h-4 mt-0.5 shrink-0 ${p.cls}`} />
+                        <span className="text-slate-700">
+                          <strong>Row {p.row}</strong> — {p.text}
+                        </span>
+                      </div>
+                    ))}
+                  <div className="pt-3 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                    <span className="text-xs text-slate-500">Rows with problems are skipped.</span>
+                    <Button variant="primary" icon={Upload} loading={importing} disabled={!preview.validCount} onClick={() => runImport(false)}>
+                      Import {preview.validCount} {preview.validCount === 1 ? 'student' : 'students'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </Card>
+          </div>
+        </>
+      )}
+
+      {/* -------------------------------------------------------------- Reports */}
+      {activeTab === 'admin-reports' && (
+        <>
+          <PageHeader title="Reports" description="Examination-board eligibility report for any class. Only locked lectures are counted." />
+          <Card padded={false}>
+            {!meta?.sections.length ? (
+              <EmptyState icon={Award} title="No classes" />
+            ) : (
+              <div className="table-scroll">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-xs text-slate-500">
+                    <tr>
+                      <th className="py-2.5 px-4 font-semibold">Course</th>
+                      <th className="py-2.5 px-3 font-semibold">Class</th>
+                      <th className="py-2.5 px-3 font-semibold">Faculty</th>
+                      <th className="py-2.5 px-3 font-semibold">Students</th>
+                      <th className="py-2.5 px-4" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {meta.sections.map((s) => (
+                      <tr key={s.id}>
+                        <td className="py-3 px-4">
+                          <span className="font-mono text-xs text-slate-500 mr-2">{course(s.courseId)?.code}</span>
+                          <span className="font-semibold text-slate-800">{course(s.courseId)?.title}</span>
+                        </td>
+                        <td className="py-3 px-3 text-slate-600">{s.name}</td>
+                        <td className="py-3 px-3 text-slate-600">{s.facultyName}</td>
+                        <td className="py-3 px-3 text-slate-600">{s.studentCount}</td>
+                        <td className="py-3 px-4 text-right">
+                          <Button size="sm" icon={Award} onClick={() => onOpenUniversityReport(s.courseId, s.id)}>
+                            Open report
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </>
+      )}
+
+      {/* ------------------------------------------------------------ Audit log */}
+      {activeTab === 'admin-audit' && (
+        <>
+          <PageHeader title="Audit log" description="Sign-ins, attendance submissions, leave decisions and account changes. Entries can't be edited." />
+          <Card padded={false}>
+            <div className="p-4 flex flex-wrap gap-3 border-b border-slate-200">
+              <div className="relative flex-1 min-w-56">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                <input
+                  value={auditQuery}
+                  onChange={(e) => setAuditQuery(e.target.value)}
+                  placeholder="Search person or details"
+                  aria-label="Search audit log"
+                  className={`${inputClass} pl-9`}
                 />
               </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  id="btn-validate-csv"
-                  onClick={handleValidateCSV}
-                  disabled={isImporting || !importText.trim()}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold text-xs flex items-center gap-1.5 transition-all shadow-2xs"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5 text-brand-600" />
-                  Validate & preview
-                </button>
-                {previewResult && previewResult.validCount > 0 && (
-                  <button
-                    id="btn-commit-import"
-                    onClick={handleCommitImport}
-                    disabled={isImporting}
-                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all"
-                  >
-                    <Upload className="w-3.5 h-3.5" /> Commit {previewResult.validCount} Valid Records
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Validation Feedback & Preview */}
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col justify-between">
-              <div>
-                <h4 className="text-xs font-bold text-slate-700 mb-2">
-                  Validation preview matrix
-                </h4>
-
-                {previewResult ? (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                      <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
-                        <div className="text-2xs text-slate-500 font-semibold">Total rows</div>
-                        <div className="text-base font-bold text-slate-900">
-                          {previewResult.totalRecords}
-                        </div>
-                      </div>
-                      <div className="bg-emerald-50/70 p-2.5 rounded-lg border border-emerald-200 shadow-2xs">
-                        <div className="text-2xs text-emerald-800 font-semibold">Valid</div>
-                        <div className="text-base font-bold text-emerald-700">
-                          {previewResult.validCount}
-                        </div>
-                      </div>
-                      <div className="bg-rose-50/70 p-2.5 rounded-lg border border-rose-200 shadow-2xs">
-                        <div className="text-2xs text-rose-800 font-semibold">Errors and duplicates</div>
-                        <div className="text-base font-bold text-rose-700">
-                          {previewResult.duplicateCount + previewResult.invalidCount}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Detected duplicates */}
-                    {previewResult.duplicates.length > 0 && (
-                      <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs">
-                        <div className="text-amber-800 font-bold flex items-center gap-1 text-2xs">
-                          <AlertTriangle className="w-3 h-3 text-amber-600" /> Duplicate Enrollment Numbers Found:
-                        </div>
-                        <ul className="text-slate-700 mt-1 space-y-0.5 text-2xs font-medium">
-                          {previewResult.duplicates.map((d: any, idx: number) => (
-                            <li key={idx}>
-                              Row {d.row}: <strong className="font-mono text-slate-900">{d.enrollmentNumber}</strong> - {d.reason}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-
-                    {/* Detected invalid format */}
-                    {previewResult.invalidRecords.length > 0 && (
-                      <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs">
-                        <div className="text-rose-800 font-bold flex items-center gap-1 text-2xs">
-                          <XCircle className="w-3 h-3 text-rose-600" /> Missing Fields or Format Errors:
-                        </div>
-                        <ul className="text-slate-700 mt-1 space-y-0.5 text-2xs font-medium">
-                          {previewResult.invalidRecords.map((inv: any, idx: number) => (
-                            <li key={idx}>
-                              Row {inv.row}: {inv.reason}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-center py-10 text-xs text-slate-500 font-medium">
-                    <FileSpreadsheet className="w-8 h-8 mx-auto mb-2 text-slate-400" />
-                    Enter CSV rows and click &quot;Validate & Preview&quot; to inspect errors before
-                    saving.
-                  </div>
-                )}
-              </div>
-
-              <div className="text-2xs text-slate-500 pt-3 border-t border-slate-200 font-medium">
-                Rule 7 Compliance: No duplicate enrollment numbers allowed within the same section.
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tab: University Reports */}
-      {activeTab === 'admin-reports' && (
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Award className="w-5 h-5 text-brand-600" />
-                University reports
-              </h3>
-              <p className="text-xs text-slate-500">
-                Institutional attendance reports with university headers, student rosters, compliance stats,
-                and formal signature blocks.
-              </p>
-            </div>
-            {onOpenUniversityReport && (
-              <button
-                onClick={() => onOpenUniversityReport('course-ds', 'sec-ds-a')}
-                className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs flex items-center gap-2 shadow-sm"
-              >
-                <Award className="w-4 h-4" /> Launch University Board Generator
-              </button>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-              <div className="text-xs font-bold text-brand-700">Department consolidation</div>
-              <p className="text-xs text-slate-600 mt-1">
-                Consolidated attendance across Computer Science & Engineering department (CS-301, CS-302, CS-303).
-              </p>
-              <button
-                onClick={() => onOpenUniversityReport && onOpenUniversityReport('course-ds', 'sec-ds-a')}
-                className="mt-3 text-xs text-brand-600 hover:text-brand-800 font-bold flex items-center gap-1"
-              >
-                Preview Submission Template <ExternalLink className="w-3 h-3" />
-              </button>
-            </div>
-
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-              <div className="text-xs font-bold text-brand-700">Cross-Campus Consolidation</div>
-              <p className="text-xs text-slate-600 mt-1">
-                Authorized administrator consolidation for North Campus and South Campus.
-              </p>
-              <button
-                onClick={() => onOpenUniversityReport && onOpenUniversityReport('course-ds', 'sec-ds-a')}
-                className="mt-3 text-xs text-brand-600 hover:text-brand-800 font-bold flex items-center gap-1"
-              >
-                Generate Combined Audit PDF <ExternalLink className="w-3 h-3" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tab: System Audit Logs */}
-      {activeTab === 'admin-audit' && (
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
-          <div>
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <History className="w-5 h-5 text-amber-600" />
-              Audit log
-            </h3>
-            <p className="text-xs text-slate-500">
-              Append-only tamper-evident event log recording logins, attendance submissions, leave actions,
-              and configuration updates.
-            </p>
-          </div>
-
-          <div className="table-scroll">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 text-2xs font-bold border-b border-slate-200">
-                <tr>
-                  <th className="py-3 px-4">Timestamp</th>
-                  <th className="py-3 px-4">Actor</th>
-                  <th className="py-3 px-4">Action</th>
-                  <th className="py-3 px-4">Entity</th>
-                  <th className="py-3 px-4">Details</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-medium">
-                {auditLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-50/80">
-                    <td className="py-3 px-4 font-mono text-slate-500 text-2xs whitespace-nowrap">
-                      {new Date(log.timestamp).toLocaleString()}
-                    </td>
-                    <td className="py-3 px-4 text-slate-900 font-bold">{log.userName}</td>
-                    <td className="py-3 px-4">
-                      <span className="font-mono text-2xs px-2 py-0.5 rounded bg-slate-100 text-brand-700 border border-slate-200 font-semibold">
-                        {log.action}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-slate-600">{log.entityName}</td>
-                    <td className="py-3 px-4 text-slate-800 max-w-sm truncate">{log.details}</td>
-                  </tr>
+              <select aria-label="Action" value={auditAction} onChange={(e) => setAuditAction(e.target.value)} className={selectClass}>
+                <option value="ALL">All actions</option>
+                {actions.map((a) => (
+                  <option key={a} value={a}>
+                    {a.replaceAll('_', ' ').toLowerCase()}
+                  </option>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+              </select>
+            </div>
+            {visibleLogs.length === 0 ? (
+              <EmptyState icon={History} title="No matching entries" />
+            ) : (
+              <div className="table-scroll">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-xs text-slate-500">
+                    <tr>
+                      <th className="py-2.5 px-4 font-semibold">When</th>
+                      <th className="py-2.5 px-3 font-semibold">Who</th>
+                      <th className="py-2.5 px-3 font-semibold">Action</th>
+                      <th className="py-2.5 px-4 font-semibold">Details</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {visibleLogs.map((l) => (
+                      <tr key={l.id} className="align-top">
+                        <td className="py-2.5 px-4 text-xs text-slate-500 whitespace-nowrap">{when(l.timestamp)}</td>
+                        <td className="py-2.5 px-3 font-semibold text-slate-800 whitespace-nowrap">{l.userName}</td>
+                        <td className="py-2.5 px-3">
+                          <Badge>{l.action.replaceAll('_', ' ').toLowerCase()}</Badge>
+                        </td>
+                        <td className="py-2.5 px-4 text-slate-600 min-w-72">{l.details}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </>
       )}
-
-      {/* Tab: User Management */}
-      {activeTab === 'admin-users' && <UserManagementTab />}
     </div>
   );
 };

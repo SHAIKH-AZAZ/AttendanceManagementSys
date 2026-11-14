@@ -20,7 +20,7 @@ export async function POST(
     const body = await request.json();
     const { records } = body;
 
-    if (!records || !Array.isArray(records)) {
+    if (!Array.isArray(records) || records.length === 0) {
       return NextResponse.json(
         { error: 'Invalid attendance records payload' },
         { status: 400 }

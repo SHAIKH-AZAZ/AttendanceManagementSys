@@ -9,33 +9,19 @@ import { StudentPortal } from '@/components/student/StudentPortal';
 import { HODPortal } from '@/components/hod/HODPortal';
 import { AdminPortal } from '@/components/admin/AdminPortal';
 import { UniversityReportModal } from '@/components/reports/UniversityReportModal';
+import { defaultTab } from '@/lib/navigation';
 
 function DashboardContent() {
   const { user, logout, isLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<string>('marking');
+  const [activeTab, setActiveTab] = useState<string>('');
   const [reportModalCourse, setReportModalCourse] = useState<{
     courseId: string;
     sectionId: string;
   } | null>(null);
 
-  // Sync default active tab on user/role switch
+  // Land on the role's first section whenever the signed-in role changes.
   useEffect(() => {
-    if (user) {
-      switch (user.role) {
-        case 'FACULTY':
-          setActiveTab('marking');
-          break;
-        case 'STUDENT':
-          setActiveTab('student-overview');
-          break;
-        case 'HOD':
-          setActiveTab('hod-overview');
-          break;
-        case 'ADMIN_STAFF':
-          setActiveTab('admin-config');
-          break;
-      }
-    }
+    if (user) setActiveTab(defaultTab(user.role));
   }, [user?.role]);
 
   if (isLoading) {
@@ -58,6 +44,12 @@ function DashboardContent() {
     setReportModalCourse({ courseId, sectionId });
   };
 
+  const portalProps = {
+    activeTab,
+    setActiveTab,
+    onOpenUniversityReport: handleOpenUniversityReport,
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800">
       {/* Top Navbar with onLogout */}
@@ -71,28 +63,19 @@ function DashboardContent() {
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {user.role === 'FACULTY' && (
-          <FacultyPortal
-            activeTab={activeTab}
-            onOpenUniversityReport={handleOpenUniversityReport}
-          />
+          <FacultyPortal {...portalProps} />
         )}
 
         {user.role === 'STUDENT' && (
-          <StudentPortal activeTab={activeTab} />
+          <StudentPortal {...portalProps} />
         )}
 
         {user.role === 'HOD' && (
-          <HODPortal
-            activeTab={activeTab}
-            onOpenUniversityReport={handleOpenUniversityReport}
-          />
+          <HODPortal {...portalProps} />
         )}
 
         {user.role === 'ADMIN_STAFF' && (
-          <AdminPortal
-            activeTab={activeTab}
-            onOpenUniversityReport={handleOpenUniversityReport}
-          />
+          <AdminPortal {...portalProps} />
         )}
       </main>
 

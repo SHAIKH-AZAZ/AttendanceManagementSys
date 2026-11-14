@@ -38,6 +38,21 @@ expect "admin login"                    200 "$(login adm arun.kulkarni@univ.edu 
 body=$(curl -s -b "$JAR/adm" "$BASE/api/admin/users")
 expect "admin lists users"              yes "$(echo "$body" | grep -q '"users"' && echo yes || echo no)"
 expect "no password in user list"       no  "$(echo "$body" | grep -q '"password"' && echo yes || echo no)"
+# --- academic data + lecture rules ---
+meta=$(curl -s -b "$JAR/stu" "$BASE/api/meta")
+expect "meta readable by student"       yes "$(echo "$meta" | grep -q '"sections"' && echo yes || echo no)"
+expect "meta hides class rosters"       no  "$(echo "$meta" | grep -q 'enrolledStudents' && echo yes || echo no)"
+expect "meta requires sign-in"          401 "$(code "$BASE/api/meta")"
+expect "faculty2 login"                 200 "$(login fac2 anita.desai@univ.edu faculty123)"
+expect "faculty can't start other's class" 403 "$(code -b "$JAR/fac2" -H 'Content-Type: application/json' -d '{"sectionId":"sec-ds-a","lectureDate":"2026-11-01"}' "$BASE/api/sessions")"
+expect "bad lecture date rejected"      400 "$(code -b "$JAR/fac" -H 'Content-Type: application/json' -d '{"sectionId":"sec-ds-b","lectureDate":"tomorrow"}' "$BASE/api/sessions")"
+draft=$(curl -s -b "$JAR/fac" "$BASE/api/sessions" | grep -o '"id":"[^"]*","campusId[^}]*"isLocked":false' | head -1 | grep -o '^"id":"[^"]*"' | cut -d'"' -f4)
+if [ -n "$draft" ]; then
+  expect "empty draft payload rejected" 400 "$(code -b "$JAR/fac" -H 'Content-Type: application/json' -d '{"records":[]}' "$BASE/api/sessions/$draft/draft")"
+  expect "unknown student rejected"     400 "$(code -b "$JAR/fac" -H 'Content-Type: application/json' -d '{"records":[{"studentId":"nobody","status":"ABSENT"}]}' "$BASE/api/sessions/$draft/draft")"
+fi
+expect "short password rejected"       400 "$(code -b "$JAR/adm" -H 'Content-Type: application/json' -d '{"email":"x@y.z","fullName":"X","role":"STUDENT","password":"short"}' "$BASE/api/admin/users")"
+
 expect "logout"                         200 "$(code -b "$JAR/adm" -c "$JAR/adm" -X POST "$BASE/api/auth/logout")"
 expect "/me after logout"               401 "$(code -b "$JAR/adm" "$BASE/api/auth/me")"
 

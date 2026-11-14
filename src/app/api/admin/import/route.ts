@@ -92,7 +92,8 @@ export async function POST(request: Request) {
     // Commit import
     const commitResult = await dbService.importStudentsRoster(
       sectionId,
-      validationReport.validRecords
+      validationReport.validRecords,
+      auth
     );
 
     return NextResponse.json({

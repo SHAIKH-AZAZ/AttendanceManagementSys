@@ -11,11 +11,14 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
+    if (body.password !== undefined && (typeof body.password !== 'string' || body.password.length < 8)) {
+      return NextResponse.json({ error: 'Password must be at least 8 characters.' }, { status: 400 });
+    }
     if (id === auth.id && (body.isActive === false || (body.role && body.role !== auth.role))) {
       return NextResponse.json({ error: 'You cannot deactivate or demote your own account.' }, { status: 400 });
     }
 
-    const updatedUser = await dbService.updateUser(id, body);
+    const updatedUser = await dbService.updateUser(id, body, auth);
 
     return NextResponse.json({
       message: 'User updated successfully.',
@@ -40,7 +43,7 @@ export async function DELETE(
     if (id === auth.id) {
       return NextResponse.json({ error: 'You cannot deactivate your own account.' }, { status: 400 });
     }
-    const result = await dbService.deleteUser(id);
+    const result = await dbService.deleteUser(id, auth);
 
     return NextResponse.json({
       message: 'User account deactivated.',

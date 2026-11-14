@@ -69,6 +69,12 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+    if (!['STUDENT', 'FACULTY', 'HOD', 'ADMIN_STAFF'].includes(role)) {
+      return NextResponse.json({ error: 'Unknown role.' }, { status: 400 });
+    }
+    if (typeof password !== 'string' || password.length < 8) {
+      return NextResponse.json({ error: 'Password must be at least 8 characters.' }, { status: 400 });
+    }
 
     const newUser = await dbService.createUser({
       email,
@@ -76,11 +82,11 @@ export async function POST(request: Request) {
       role,
       campusId: campusId || 'campus-1',
       departmentId: departmentId || 'dept-cs',
-      password: password || 'welcome123',
+      password,
       employeeCode,
       enrollmentNumber,
       academicYear,
-    });
+    }, auth);
 
     return NextResponse.json(
       {

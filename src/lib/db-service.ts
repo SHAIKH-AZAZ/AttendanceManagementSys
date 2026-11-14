@@ -51,15 +51,19 @@ class DatabaseState {
 // Global persistence across Next.js dev server hot-reloads
 declare global {
   // eslint-disable-next-line no-var
-  var __attendease_db_state_v2: DatabaseState | undefined;
+  var __attendease_db_state_v4: DatabaseState | undefined;
 }
 
 const state: DatabaseState =
-  global.__attendease_db_state_v2 || new DatabaseState();
+  global.__attendease_db_state_v4 || new DatabaseState();
 
-if (!global.__attendease_db_state_v2) {
-  global.__attendease_db_state_v2 = state;
+if (!global.__attendease_db_state_v4) {
+  global.__attendease_db_state_v4 = state;
 }
+
+type Actor = { id: string; fullName: string };
+const SYSTEM: Actor = { id: 'system', fullName: 'System' };
+const nameOf = (id: string) => state.users.find((u) => u.id === id)?.fullName ?? id;
 
 export const dbService = {
   // --- Metas ---
@@ -126,7 +130,7 @@ export const dbService = {
       action: 'USER_LOGIN',
       entityName: 'User',
       entityId: user.id,
-      details: `${user.fullName} (${user.role}) logged in successfully.`,
+      details: `Signed in as ${user.role.replace("_", " ").toLowerCase()}.`,
     });
 
     return user;
@@ -142,7 +146,7 @@ export const dbService = {
     employeeCode?: string;
     enrollmentNumber?: string;
     academicYear?: string;
-  }): Promise<User> {
+  }, actor: Actor = SYSTEM): Promise<User> {
     const existing = await this.getUserByEmail(data.email);
     if (existing) {
       throw new Error('A user with this email address already exists.');
@@ -185,8 +189,8 @@ export const dbService = {
     state.users.push(newUser);
 
     this.addSystemAudit({
-      userId: 'user-admin-1',
-      userName: 'Administrator',
+      userId: actor.id,
+      userName: actor.fullName,
       action: 'USER_CREATED',
       entityName: 'User',
       entityId: newUser.id,
@@ -198,7 +202,8 @@ export const dbService = {
 
   async updateUser(
     id: string,
-    updates: Partial<Omit<User, 'id'>>
+    updates: Partial<Omit<User, 'id'>>,
+    actor: Actor = SYSTEM
   ): Promise<User> {
     const user = state.users.find((u) => u.id === id);
     if (!user) throw new Error('User not found.');
@@ -218,8 +223,8 @@ export const dbService = {
     if (password) user.password = hashPassword(password);
 
     this.addSystemAudit({
-      userId: 'user-admin-1',
-      userName: 'Administrator',
+      userId: actor.id,
+      userName: actor.fullName,
       action: 'USER_UPDATED',
       entityName: 'User',
       entityId: user.id,
@@ -229,15 +234,15 @@ export const dbService = {
     return user;
   },
 
-  async deleteUser(id: string): Promise<{ success: boolean }> {
+  async deleteUser(id: string, actor: Actor = SYSTEM): Promise<{ success: boolean }> {
     const user = state.users.find((u) => u.id === id);
     if (!user) throw new Error('User not found.');
 
     user.isActive = false; // Soft deactivate
 
     this.addSystemAudit({
-      userId: 'user-admin-1',
-      userName: 'Administrator',
+      userId: actor.id,
+      userName: actor.fullName,
       action: 'USER_DEACTIVATED',
       entityName: 'User',
       entityId: user.id,
@@ -318,9 +323,34 @@ export const dbService = {
     if (!session) throw new Error('Session not found');
     if (session.isLocked) throw new Error('Cannot edit locked session');
 
-    session.records = records;
-    session.summary = this._calculateSummary(records);
+    session.records = this._mergeMarks(session.records, records);
+    session.summary = this._calculateSummary(session.records);
     return session;
+  },
+
+  /**
+   * Apply client marks (status/remarks only) onto the server-side roster.
+   * The roster itself is never replaced by client data.
+   */
+  _mergeMarks(roster: AttendanceRecord[], marks: AttendanceRecord[]): AttendanceRecord[] {
+    const VALID = ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED', 'MEDICAL_LEAVE', 'ON_DUTY'];
+    const byId = new Map(marks.map((m) => [m.studentId, m]));
+    for (const id of byId.keys()) {
+      if (!roster.some((r) => r.studentId === id)) {
+        throw new Error(`Student ${id} is not on this class roster.`);
+      }
+    }
+    return roster.map((r) => {
+      const m = byId.get(r.studentId);
+      if (!m) return r;
+      if (!VALID.includes(m.status)) throw new Error(`Invalid status for ${r.studentName}.`);
+      return {
+        ...r,
+        status: m.status,
+        remarks: typeof m.remarks === 'string' ? m.remarks.slice(0, 200) : r.remarks,
+        markedAt: m.status !== r.status ? new Date().toISOString() : r.markedAt,
+      };
+    });
   },
 
   async submitAndLockSession(
@@ -333,9 +363,12 @@ export const dbService = {
     if (session.isLocked) {
       throw new Error('This attendance session is locked and immutable.');
     }
+    if (session.records.length === 0) {
+      throw new Error('This class has no students on its roster.');
+    }
 
-    session.records = records;
-    session.summary = this._calculateSummary(records);
+    session.records = this._mergeMarks(session.records, records);
+    session.summary = this._calculateSummary(session.records);
     session.isLocked = true;
     session.submittedAt = new Date().toISOString();
     session.submittedBy = facultyId;
@@ -343,7 +376,7 @@ export const dbService = {
     // Log to system audit
     this.addSystemAudit({
       userId: facultyId,
-      userName: 'Faculty Submitter',
+      userName: nameOf(facultyId),
       action: 'ATTENDANCE_SUBMITTED_AND_LOCKED',
       entityName: 'LectureSession',
       entityId: sessionId,
@@ -379,14 +412,11 @@ export const dbService = {
       previousSession.records.map((r) => [r.studentId, r.status])
     );
 
-    // Apply copied statuses into current session records
-    currentSession.records = currentSession.records.map((r) => ({
+    // Return a proposal only; nothing is saved until the faculty saves the draft.
+    return currentSession.records.map((r) => ({
       ...r,
       status: prevMap.get(r.studentId) || 'PRESENT',
     }));
-
-    currentSession.summary = this._calculateSummary(currentSession.records);
-    return currentSession.records;
   },
 
   // --- Leaves ---
@@ -466,7 +496,8 @@ export const dbService = {
           session.lectureDate <= leave.endDate
         ) {
           const rec = session.records.find((r) => r.studentId === leave.studentId);
-          if (rec) {
+          // Only absences are excused; a lecture the student attended stays as marked.
+          if (rec && rec.status === 'ABSENT') {
             const previousStatus = rec.status;
             rec.status = targetStatus;
             rec.remarks = `Leave Approved #${leave.id}`;
@@ -482,7 +513,7 @@ export const dbService = {
               newStatus: targetStatus,
               reason: `Automated leave integration #${leave.id} (${leave.leaveType})`,
               changedBy: hodUserId,
-              changedByName: 'HOD Department Approver',
+              changedByName: nameOf(hodUserId),
               createdAt: new Date().toISOString(),
             });
           }
@@ -492,11 +523,11 @@ export const dbService = {
 
     this.addSystemAudit({
       userId: hodUserId,
-      userName: 'HOD Reviewer',
+      userName: nameOf(hodUserId),
       action: `LEAVE_${status}`,
       entityName: 'LeaveApplication',
       entityId: leave.id,
-      details: `Leave application #${leave.id} was ${status}. ${updatedSessionCount} lecture records updated.`,
+      details: `${status === 'APPROVED' ? 'Approved' : 'Rejected'} ${leave.studentName}'s ${leave.leaveType.toLowerCase().replace('_', ' ')} leave (${leave.startDate} to ${leave.endDate}); ${updatedSessionCount} absence(s) excused.`,
     });
 
     return { leave, updatedSessionCount };
@@ -630,13 +661,30 @@ export const dbService = {
       overallPercentage,
       isCompliant: overallPercentage >= 75.0,
       courses,
+      // Newest first: one row per locked lecture this student was on the roster for.
+      history: enrolledSessions
+        .map((s) => {
+          const rec = s.records.find((r) => r.studentId === studentId)!;
+          const c = state.courses.find((course) => course.id === s.courseId);
+          return {
+            sessionId: s.id,
+            lectureDate: s.lectureDate,
+            courseCode: c?.code || s.courseId,
+            sessionNumber: s.sessionNumber,
+            sessionTitle: s.sessionTitle,
+            status: rec.status,
+            remarks: rec.remarks,
+          };
+        })
+        .sort((x, y) => y.lectureDate.localeCompare(x.lectureDate)),
     };
   },
 
   // --- Bulk Student Enrollment Import (CSV/Excel) ---
   async importStudentsRoster(
     sectionId: string,
-    importedList: { enrollmentNumber: string; fullName: string; email: string }[]
+    importedList: { enrollmentNumber: string; fullName: string; email: string }[],
+    actor: Actor = SYSTEM
   ): Promise<{
     totalReceived: number;
     successfullyImported: number;
@@ -684,8 +732,8 @@ export const dbService = {
     });
 
     this.addSystemAudit({
-      userId: 'user-admin-1',
-      userName: 'Admin Staff',
+      userId: actor.id,
+      userName: actor.fullName,
       action: 'BULK_STUDENT_IMPORT',
       entityName: 'Section',
       entityId: sectionId,

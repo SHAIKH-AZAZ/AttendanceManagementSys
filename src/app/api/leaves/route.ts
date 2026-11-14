@@ -49,6 +49,16 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+    const isDate = (d: unknown) => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d);
+    if (!['CASUAL', 'MEDICAL', 'ON_DUTY', 'BEREAVEMENT'].includes(leaveType)) {
+      return NextResponse.json({ error: 'Unknown leave type.' }, { status: 400 });
+    }
+    if (!isDate(startDate) || !isDate(endDate) || endDate < startDate) {
+      return NextResponse.json({ error: 'End date must be on or after the start date.' }, { status: 400 });
+    }
+    if (typeof reason !== 'string' || !reason.trim() || reason.length > 500) {
+      return NextResponse.json({ error: 'Give a reason (up to 500 characters).' }, { status: 400 });
+    }
 
     const leave = await dbService.submitLeave({
       studentId: auth.id,
@@ -60,7 +70,7 @@ export async function POST(request: Request) {
       startDate,
       endDate,
       reason,
-      documentUrl: documentUrl || '/documents/sample_leave_proof.pdf',
+      documentUrl: typeof documentUrl === 'string' && documentUrl ? documentUrl.slice(0, 200) : undefined,
     });
 
     return NextResponse.json({ leave }, { status: 201 });
