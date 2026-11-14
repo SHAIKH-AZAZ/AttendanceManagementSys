@@ -1,6 +1,16 @@
 # Plan: Material UI migration and backend separation
 
-Status: plan only, nothing implemented. Written 2026-11-15.
+Status (2026-11-15): **MUI migration phases 0–4 done**; Tailwind kept for page layout (phase 5 not done). Backend separation: plan only.
+
+### MUI migration — what was actually done
+
+- Installed `@mui/material` 9.5.0, `@mui/material-nextjs` 9.5.0 (`v16-appRouter`), Emotion 11.14. `AppRouterCacheProvider` with `enableCssLayer`; layer order `theme, base, mui, components, utilities` in `globals.css` (from MUI's bundled CSS-layers docs), so Tailwind layout classes still apply.
+- Theme in `src/theme.ts` (colours, Plus Jakarta Sans, radii, component defaults).
+- `src/components/ui/index.tsx` rebuilt on MUI with the same exports: Button, Card, StatCard (CardActionArea), Badge (Chip), Notice (Alert), Modal (Dialog — focus trap, Escape and scroll lock now come from MUI), ProgressBar (LinearProgress), SegmentedControl (ToggleButtonGroup). New: `AttendancePicker`, `SelectField`, `SearchField`.
+- All screens converted: tables → MUI Table, inputs → TextField, selects → SelectField, checkbox → Checkbox, navbar → AppBar + scrollable Tabs + Menu, login → TextField with adornments, report → Dialog.
+- Fixed on the way: printing the board report printed the whole app behind it (now prints only the report); empty board report could be opened for a class with no locked lectures.
+- Measured: client JavaScript went from **202 KB to 297 KB gzip (+95 KB)**, inside the 80–120 KB estimate.
+- Checked: typecheck, lint, production build, 27/27 smoke tests, every flow in a headless browser at 1440 px and 390 px (no sideways overflow), real keystroke typing in all dialogs, print preview of the report.
 
 ## 1. Where the project stands today (measured)
 

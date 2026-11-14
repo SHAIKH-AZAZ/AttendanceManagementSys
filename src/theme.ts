@@ -3,8 +3,10 @@
 import { createTheme } from '@mui/material/styles';
 
 /**
- * AttendEASE365 theme. Colours mirror the CSS tokens in globals.css so MUI
- * components and the remaining Tailwind layout classes stay in step.
+ * AttendEASE365 theme — the single source of colour. MUI writes the palette
+ * to :root as --mui-palette-* and globals.css reads those for the Tailwind
+ * brand-/emerald-/rose- classes. To recolour the app, change TOKENS here:
+ * accent / accentInk / accentTint (primary + info.light), good*, bad*.
  */
 export const TOKENS = {
   ink: '#2A3547',
@@ -23,7 +25,6 @@ export const TOKENS = {
   badInk: '#9A3412',
   warn: '#B45309',
   warnTint: '#FEF3C7',
-  info: '#1D4ED8',
   violet: '#7C3AED',
   violetTint: '#EDE9FE',
   sky: '#0369A1',
@@ -40,7 +41,7 @@ const theme = createTheme({
     success: { main: TOKENS.good, light: TOKENS.goodTint, dark: TOKENS.goodInk, contrastText: '#fff' },
     error: { main: TOKENS.bad, light: TOKENS.badTint, dark: TOKENS.badInk, contrastText: '#fff' },
     warning: { main: TOKENS.warn, light: TOKENS.warnTint, contrastText: '#fff' },
-    info: { main: TOKENS.info, light: TOKENS.accentTint, contrastText: '#fff' },
+    info: { main: TOKENS.accent, light: TOKENS.accentTint, contrastText: '#fff' },
     text: { primary: TOKENS.ink, secondary: TOKENS.inkSoft, disabled: TOKENS.steel },
     divider: TOKENS.rule,
     background: { default: TOKENS.fill, paper: '#FFFFFF' },
