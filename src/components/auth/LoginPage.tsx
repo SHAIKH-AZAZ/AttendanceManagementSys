@@ -3,8 +3,14 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
+import TextField from '@mui/material/TextField';
+import InputAdornment from '@mui/material/InputAdornment';
+import IconButton from '@mui/material/IconButton';
+import MuiButton from '@mui/material/Button';
+import Alert from '@mui/material/Alert';
+import List from '@mui/material/List';
+import ListItemButton from '@mui/material/ListItemButton';
 import {
-  AlertCircle,
   ArrowRight,
   BookOpen,
   Eye,
@@ -53,9 +59,6 @@ export const LoginPage: React.FC = () => {
     setEmail(demoEmail);
     setPassword(demoPassword);
   };
-
-  const inputClass =
-    'w-full h-11 pl-10 pr-3 bg-white border border-slate-200 rounded-lg text-base sm:text-sm text-slate-800 placeholder-slate-400 transition-colors hover:border-slate-300 focus:outline-none focus:border-brand-600 focus:ring-3 focus:ring-brand-100';
 
   return (
     <div className="min-h-screen bg-white text-slate-800 grid grid-rows-[auto_1fr] lg:grid-rows-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(420px,1fr)]">
@@ -134,71 +137,78 @@ export const LoginPage: React.FC = () => {
           <p className="mt-1.5 text-sm text-slate-500">Use your institutional email and password.</p>
 
           {error && (
-            <div
-              role="alert"
-              className="mt-6 p-3 rounded-lg bg-rose-50 border border-rose-200 text-sm text-rose-700 flex items-start gap-2"
-            >
-              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-              <span>{error}</span>
-            </div>
+            <Alert severity="error" sx={{ mt: 3 }}>
+              {error}
+            </Alert>
           )}
 
-          <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-            <div>
-              <label htmlFor="email" className="block text-sm font-semibold text-slate-700 mb-1.5">
-                Email
-              </label>
-              <div className="relative">
-                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="username"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@univ.edu"
-                  className={inputClass}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-semibold text-slate-700 mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className={`${inputClass} pr-11`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="absolute right-1 top-1 w-9 h-9 rounded-md flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <button
+          <form className="mt-6 flex flex-col gap-4" onSubmit={handleSubmit}>
+            <TextField
+              id="email"
+              name="email"
+              type="email"
+              label="Email"
+              autoComplete="username"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@univ.edu"
+              size="medium"
+              slotProps={{
+                inputLabel: { shrink: true },
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Mail size={16} />
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
+            <TextField
+              id="password"
+              name="password"
+              type={showPassword ? 'text' : 'password'}
+              label="Password"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              size="medium"
+              slotProps={{
+                inputLabel: { shrink: true },
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Lock size={16} />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => setShowPassword((v) => !v)}
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        edge="end"
+                        size="small"
+                      >
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
+            <MuiButton
               type="submit"
-              disabled={isLoading}
-              className="lift w-full h-11 px-4 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-60 disabled:pointer-events-none"
+              variant="contained"
+              size="large"
+              fullWidth
+              loading={isLoading}
+              endIcon={<ArrowRight size={16} />}
+              sx={{ minHeight: 44 }}
             >
-              {isLoading ? 'Signing in…' : 'Sign in'}
-              {!isLoading && <ArrowRight className="w-4 h-4" />}
-            </button>
+              Sign in
+            </MuiButton>
           </form>
 
           {process.env.NODE_ENV !== 'production' && (
@@ -207,30 +217,28 @@ export const LoginPage: React.FC = () => {
               <p className="text-2xs text-slate-500 mt-0.5">
                 Development only. Click one to fill the form, then sign in.
               </p>
-              <ul className="mt-3 divide-y divide-slate-200 border border-slate-200 rounded-xl bg-white overflow-hidden">
-                {DEMO_ACCOUNTS.map(({ role, name, email: e, password: p, icon: Icon }) => (
-                  <li key={e}>
-                    <button
-                      type="button"
-                      onClick={() => fillDemo(e, p)}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 ${
-                        email === e ? 'bg-brand-50' : ''
-                      }`}
-                    >
-                      <span className="w-8 h-8 shrink-0 rounded-lg bg-brand-100 text-brand-600 flex items-center justify-center">
-                        <Icon className="w-4 h-4" />
+              <List disablePadding className="mt-3 border border-slate-200 rounded-xl bg-white overflow-hidden">
+                {DEMO_ACCOUNTS.map(({ role, name, email: e, password: p, icon: Icon }, idx) => (
+                  <ListItemButton
+                    key={e}
+                    divider={idx < DEMO_ACCOUNTS.length - 1}
+                    selected={email === e}
+                    onClick={() => fillDemo(e, p)}
+                    sx={{ gap: 1.5, py: 1.25 }}
+                  >
+                    <span className="w-8 h-8 shrink-0 rounded-lg bg-brand-100 text-brand-600 flex items-center justify-center">
+                      <Icon className="w-4 h-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold text-slate-800">{role}</span>
+                      <span className="block text-2xs text-slate-500 truncate">
+                        {name} · {e}
                       </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-semibold text-slate-800">{role}</span>
-                        <span className="block text-2xs text-slate-500 truncate">
-                          {name} · {e}
-                        </span>
-                      </span>
-                      <ArrowRight className="w-4 h-4 text-slate-400" />
-                    </button>
-                  </li>
+                    </span>
+                    <ArrowRight className="w-4 h-4 text-slate-400" />
+                  </ListItemButton>
                 ))}
-              </ul>
+              </List>
             </div>
           )}
         </div>

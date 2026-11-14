@@ -1,6 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Dialog from '@mui/material/Dialog';
+import MuiButton from '@mui/material/Button';
+import IconButton from '@mui/material/IconButton';
+import CircularProgress from '@mui/material/CircularProgress';
 import {
   Printer,
   Download,
@@ -46,21 +50,34 @@ export const UniversityReportModal: React.FC<UniversityReportModalProps> = ({
     window.print();
   };
 
-  if (loading) {
+  if (loading || !report) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-        <div className="bg-slate-900 border border-slate-700 p-6 rounded-2xl text-white text-xs font-semibold animate-pulse">
-          Generating University Board Attendance Dossier...
+      <Dialog open onClose={onClose} aria-label="Loading report">
+        <div className="flex items-center gap-3 p-6 text-sm text-slate-600">
+          {loading ? (
+            <>
+              <CircularProgress size={20} /> Preparing the board report…
+            </>
+          ) : (
+            'The report could not be loaded. Close this and try again.'
+          )}
         </div>
-      </div>
+      </Dialog>
     );
   }
 
-  if (!report) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
-      <div className="bg-white text-slate-900 w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col my-auto border border-slate-300 print:border-none print:shadow-none print:m-0 print:w-full print:max-w-none">
+    <Dialog
+      open
+      onClose={onClose}
+      scroll="body"
+      fullWidth
+      maxWidth="md"
+      aria-label="Examination board report"
+      className="report-dialog"
+      slotProps={{ paper: { sx: { borderRadius: 4, overflow: 'hidden' } } }}
+    >
+      <div className="flex flex-col">
         {/* Top Control Bar (Hidden during Print) */}
         <div className="bg-slate-900 text-white px-5 py-3 flex items-center justify-between print:hidden">
           <div className="flex items-center gap-2 text-xs font-bold">
@@ -68,18 +85,12 @@ export const UniversityReportModal: React.FC<UniversityReportModalProps> = ({
             Examination board submission format
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={handlePrint}
-              className="px-3 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow"
-            >
-              <Printer className="w-3.5 h-3.5" /> Print / Save as PDF
-            </button>
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <MuiButton variant="contained" size="small" startIcon={<Printer size={14} />} onClick={handlePrint}>
+              Print / Save as PDF
+            </MuiButton>
+            <IconButton aria-label="Close report" onClick={onClose} sx={{ color: '#94A3B8', '&:hover': { color: '#fff' } }}>
+              <X size={20} />
+            </IconButton>
           </div>
         </div>
 
@@ -208,6 +219,6 @@ export const UniversityReportModal: React.FC<UniversityReportModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 };

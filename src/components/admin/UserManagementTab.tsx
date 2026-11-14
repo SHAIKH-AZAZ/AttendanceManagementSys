@@ -1,5 +1,12 @@
 'use client';
 
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
+import TextField from '@mui/material/TextField';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useMeta } from '@/hooks/useMeta';
@@ -9,13 +16,13 @@ import {
   Button,
   Card,
   EmptyState,
-  Field,
   Modal,
   Notice,
   type NoticeTone,
   PageHeader,
   SegmentedControl,
-  inputClass,
+  SelectField,
+  SearchField,
 } from '@/components/ui';
 import { Search, UserPlus, Users } from 'lucide-react';
 
@@ -153,16 +160,7 @@ export const UserManagementTab: React.FC = () => {
 
       <Card padded={false}>
         <div className="p-4 flex flex-wrap items-center gap-3 border-b border-slate-200">
-          <div className="relative flex-1 min-w-56">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search name, email, roll no. or employee ID"
-              aria-label="Search users"
-              className={`${inputClass} pl-9`}
-            />
-          </div>
+          <SearchField value={query} onChange={setQuery} placeholder="Search name, email, roll no. or employee ID" ariaLabel="Search users" />
           <div className="overflow-x-auto [scrollbar-width:none]">
             <SegmentedControl
               label="Role"
@@ -179,53 +177,53 @@ export const UserManagementTab: React.FC = () => {
         {visible.length === 0 ? (
           <EmptyState icon={Users} title="No users match" description="Try a different search or role." />
         ) : (
-          <div className="table-scroll">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs text-slate-500">
-                <tr>
-                  <th className="py-2.5 px-4 font-semibold">Name</th>
-                  <th className="py-2.5 px-3 font-semibold">Role</th>
-                  <th className="py-2.5 px-3 font-semibold">Campus / department</th>
-                  <th className="py-2.5 px-3 font-semibold">ID</th>
-                  <th className="py-2.5 px-3 font-semibold">Status</th>
-                  <th className="py-2.5 px-4" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
+          <TableContainer>
+            <Table size="small" sx={{ minWidth: 720 }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Role</TableCell>
+                  <TableCell>Campus / department</TableCell>
+                  <TableCell>ID</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell />
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {visible.map((u) => (
-                  <tr key={u.id} className={u.isActive ? '' : 'bg-slate-50 text-slate-400'}>
-                    <td className="py-3 px-4">
+                  <TableRow key={u.id} className={u.isActive ? '' : 'bg-slate-50 text-slate-400'}>
+                    <TableCell>
                       <div className="font-semibold text-slate-800">
                         {u.fullName}
                         {u.id === me?.id && <span className="ml-2 text-xs font-normal text-slate-500">(you)</span>}
                       </div>
                       <div className="text-xs text-slate-500">{u.email}</div>
-                    </td>
-                    <td className="py-3 px-3">
+                    </TableCell>
+                    <TableCell>
                       <Badge tone={u.role === 'STUDENT' ? 'neutral' : 'accent'}>{roleLabel(u.role)}</Badge>
-                    </td>
-                    <td className="py-3 px-3">
+                    </TableCell>
+                    <TableCell>
                       <div className="text-slate-700">{campusName(u.campusId)}</div>
                       <div className="text-xs text-slate-500">{deptName(u.departmentId)}</div>
-                    </td>
-                    <td className="py-3 px-3 font-mono text-xs text-slate-600">
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-slate-600">
                       {u.studentProfile?.enrollmentNumber || u.facultyProfile?.employeeCode || '—'}
-                    </td>
-                    <td className="py-3 px-3">
+                    </TableCell>
+                    <TableCell>
                       <Badge tone={u.isActive ? 'good' : 'neutral'}>{u.isActive ? 'Active' : 'Deactivated'}</Badge>
-                    </td>
-                    <td className="py-3 px-4 text-right">
+                    </TableCell>
+                    <TableCell align="right">
                       {u.id !== me?.id && (
                         <Button size="sm" variant={u.isActive ? 'danger' : 'secondary'} onClick={() => setToggleTarget(u)}>
                           {u.isActive ? 'Deactivate' : 'Activate'}
                         </Button>
                       )}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+          </TableContainer>
         )}
       </Card>
 
@@ -246,50 +244,52 @@ export const UserManagementTab: React.FC = () => {
           </>
         }
       >
-        <form id="create-user" onSubmit={create} className="grid sm:grid-cols-2 gap-4">
-          <Field label="Role" htmlFor="u-role">
-            <select id="u-role" value={role} onChange={(e) => setRole(e.target.value as UserRole)} className={inputClass}>
-              {ROLES.map((r) => (
-                <option key={r.value} value={r.value}>{r.label}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label={role === 'STUDENT' ? 'Roll number' : 'Employee ID'} htmlFor="u-code" hint="Leave empty to generate one.">
-            <input id="u-code" value={code} onChange={(e) => setCode(e.target.value)} placeholder={role === 'STUDENT' ? 'CS-2026-050' : 'FAC-115'} className={inputClass} />
-          </Field>
-          <Field label="Full name" htmlFor="u-name">
-            <input id="u-name" required value={fullName} onChange={(e) => setFullName(e.target.value)} className={inputClass} />
-          </Field>
-          <Field label="Email" htmlFor="u-email">
-            <input id="u-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
-          </Field>
-          <Field label="Campus" htmlFor="u-campus">
-            <select
-              id="u-campus"
-              value={campusId}
-              onChange={(e) => {
-                setCampusId(e.target.value);
-                setDepartmentId(meta?.departments.find((d) => d.campusId === e.target.value)?.id ?? '');
-              }}
-              className={inputClass}
-            >
-              {meta?.campuses.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Department" htmlFor="u-dept">
-            <select id="u-dept" value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} className={inputClass}>
-              {role === 'ADMIN_STAFF' && <option value="">All departments</option>}
-              {campusDepts.map((d) => (
-                <option key={d.id} value={d.id}>{d.name}</option>
-              ))}
-            </select>
-          </Field>
+        <form id="create-user" onSubmit={create} className="grid sm:grid-cols-2 gap-4 pt-1">
+          <SelectField<UserRole> id="u-role" label="Role" value={role} onChange={setRole} options={ROLES} />
+          <TextField
+            id="u-code"
+            label={role === 'STUDENT' ? 'Roll number' : 'Employee ID'}
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder={role === 'STUDENT' ? 'CS-2026-050' : 'FAC-115'}
+            helperText="Leave empty to generate one."
+            slotProps={{ inputLabel: { shrink: true } }}
+          />
+          <TextField id="u-name" label="Full name" required value={fullName} onChange={(e) => setFullName(e.target.value)} />
+          <TextField id="u-email" label="Email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+          <SelectField
+            id="u-campus"
+            label="Campus"
+            value={campusId}
+            onChange={(v) => {
+              setCampusId(v);
+              setDepartmentId(meta?.departments.find((d) => d.campusId === v)?.id ?? '');
+            }}
+            options={(meta?.campuses ?? []).map((c) => ({ value: c.id, label: c.name }))}
+          />
+          <SelectField
+            id="u-dept"
+            label="Department"
+            value={departmentId}
+            onChange={setDepartmentId}
+            options={[
+              ...(role === 'ADMIN_STAFF' || campusDepts.length === 0
+                ? [{ value: '', label: campusDepts.length ? 'All departments' : 'No departments on this campus' }]
+                : []),
+              ...campusDepts.map((d) => ({ value: d.id, label: d.name })),
+            ]}
+          />
           <div className="sm:col-span-2">
-            <Field label="Initial password" htmlFor="u-pass" hint={passwordError ?? 'At least 8 characters. Share it with the person privately.'}>
-              <input id="u-pass" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} className={inputClass} />
-            </Field>
+            <TextField
+              id="u-pass"
+              label="Initial password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              error={!!passwordError}
+              helperText={passwordError ?? 'At least 8 characters. Share it with the person privately.'}
+              slotProps={{ htmlInput: { minLength: 8 } }}
+            />
           </div>
         </form>
       </Modal>

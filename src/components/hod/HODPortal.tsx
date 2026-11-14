@@ -1,5 +1,14 @@
 'use client';
 
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
+import TextField from '@mui/material/TextField';
+import Checkbox from '@mui/material/Checkbox';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useMeta, type MetaSection } from '@/hooks/useMeta';
@@ -10,7 +19,6 @@ import {
   Button,
   Card,
   EmptyState,
-  Field,
   LEAVE_TYPES,
   LeaveStatusBadge,
   Modal,
@@ -21,8 +29,7 @@ import {
   SegmentedControl,
   StatCard,
   formatDate,
-  inputClass,
-  selectClass,
+  SelectField,
 } from '@/components/ui';
 import { AlertTriangle, Award, BookOpen, Check, CheckCircle2, FileClock, Inbox, Lock, Mail, Paperclip, X } from 'lucide-react';
 
@@ -220,44 +227,44 @@ export const HODPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, onOp
             {deptSections.length === 0 ? (
               <EmptyState icon={BookOpen} title="No classes in this department" />
             ) : (
-              <div className="table-scroll">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-xs text-slate-500">
-                    <tr>
-                      <th className="py-2.5 px-4 font-semibold">Class</th>
-                      <th className="py-2.5 px-3 font-semibold">Faculty</th>
-                      <th className="py-2.5 px-3 font-semibold">Lectures</th>
-                      <th className="py-2.5 px-3 font-semibold">Average present</th>
-                      <th className="py-2.5 px-3 font-semibold">Below 75%</th>
-                      <th className="py-2.5 px-4" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
+              <TableContainer>
+                <Table size="small" sx={{ minWidth: 720 }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Class</TableCell>
+                      <TableCell>Faculty</TableCell>
+                      <TableCell>Lectures</TableCell>
+                      <TableCell>Average present</TableCell>
+                      <TableCell>Below 75%</TableCell>
+                      <TableCell />
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
                     {deptSections.map((s) => {
                       const st = classStats(s);
                       return (
-                        <tr key={s.id}>
-                          <td className="py-3 px-4">
+                        <TableRow key={s.id}>
+                          <TableCell>
                             <div className="font-semibold text-slate-800">{course(s.courseId)?.title}</div>
                             <div className="text-xs text-slate-500">{classLabel(s.id)} · {s.studentCount} students</div>
-                          </td>
-                          <td className="py-3 px-3 text-slate-600">{s.facultyName}</td>
-                          <td className="py-3 px-3 text-slate-600 whitespace-nowrap">
+                          </TableCell>
+                          <TableCell className="text-slate-600">{s.facultyName}</TableCell>
+                          <TableCell className="text-slate-600 whitespace-nowrap">
                             {st.locked} locked{st.drafts > 0 && <Badge tone="warn" className="ml-2">{st.drafts} draft</Badge>}
-                          </td>
-                          <td className="py-3 px-3 text-slate-600">{st.avg === null ? '—' : `${st.avg}%`}</td>
-                          <td className={`py-3 px-3 font-semibold ${st.below ? 'text-rose-600' : 'text-slate-500'}`}>{st.below}</td>
-                          <td className="py-3 px-4 text-right">
+                          </TableCell>
+                          <TableCell className="text-slate-600">{st.avg === null ? '—' : `${st.avg}%`}</TableCell>
+                          <TableCell className={`font-semibold ${st.below ? 'text-rose-600' : 'text-slate-500'}`}>{st.below}</TableCell>
+                          <TableCell align="right">
                             <Button size="sm" variant="ghost" icon={Award} disabled={!st.locked} onClick={() => onOpenUniversityReport(s.courseId, s.id)}>
                               Report
                             </Button>
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       );
                     })}
-                  </tbody>
-                </table>
-              </div>
+                  </TableBody>
+                </Table>
+              </TableContainer>
             )}
           </Card>
         </>
@@ -344,13 +351,13 @@ export const HODPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, onOp
             title="Defaulters"
             description="Students under 75% in locked lectures. Send a warning before exams so they can recover."
             actions={
-              <select aria-label="Class" value={classId} onChange={(e) => setClassId(e.target.value)} className={selectClass}>
-                {deptSections.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {classLabel(s.id)}
-                  </option>
-                ))}
-              </select>
+              <SelectField
+                ariaLabel="Class"
+                value={classId}
+                onChange={setClassId}
+                minWidth={220}
+                options={deptSections.map((s) => ({ value: s.id, label: classLabel(s.id) }))}
+              />
             }
           />
           {(() => {
@@ -368,51 +375,53 @@ export const HODPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, onOp
                   <span className="text-sm text-slate-600">
                     <strong className="text-rose-600">{stats.filter((s) => s.isDefaulter).length}</strong> of {stats.length} students below 75%
                   </span>
-                  <label className="flex items-center gap-2 text-sm text-slate-600">
-                    <input type="checkbox" checked={onlyBelow} onChange={(e) => setOnlyBelow(e.target.checked)} className="w-4 h-4 accent-[var(--accent)]" />
-                    Only below 75%
-                  </label>
+                  <FormControlLabel
+                    control={<Checkbox size="small" checked={onlyBelow} onChange={(e) => setOnlyBelow(e.target.checked)} />}
+                    label="Only below 75%"
+                    slotProps={{ typography: { variant: 'body2', color: 'text.secondary' } }}
+                    sx={{ mr: 0 }}
+                  />
                 </div>
                 {rows.length === 0 ? (
                   <EmptyState icon={CheckCircle2} title="Everyone is above 75%" />
                 ) : (
-                  <div className="table-scroll">
-                    <table className="w-full text-left text-sm">
-                      <thead className="bg-slate-50 text-xs text-slate-500">
-                        <tr>
-                          <th className="py-2.5 px-4 font-semibold">Student</th>
-                          <th className="py-2.5 px-3 font-semibold w-56">Attendance</th>
-                          <th className="py-2.5 px-3 font-semibold">To reach 75%</th>
-                          <th className="py-2.5 px-4" />
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
+                  <TableContainer>
+                    <Table size="small" sx={{ minWidth: 720 }}>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Student</TableCell>
+                          <TableCell className="w-56">Attendance</TableCell>
+                          <TableCell>To reach 75%</TableCell>
+                          <TableCell />
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
                         {rows.map((s) => (
-                          <tr key={s.studentId}>
-                            <td className="py-3 px-4">
+                          <TableRow key={s.studentId}>
+                            <TableCell>
                               <div className="font-semibold text-slate-800">{s.fullName}</div>
                               <div className="font-mono text-xs text-slate-500">{s.enrollmentNumber}</div>
-                            </td>
-                            <td className="py-3 px-3">
+                            </TableCell>
+                            <TableCell>
                               <div className="flex items-center gap-3">
                                 <span className={`w-12 font-bold ${s.isDefaulter ? 'text-rose-600' : 'text-emerald-700'}`}>{s.percentage}%</span>
                                 <div className="flex-1"><ProgressBar value={s.percentage} /></div>
                               </div>
                               <div className="text-xs text-slate-500 mt-1">{s.attendedLectures} of {s.totalLectures}</div>
-                            </td>
-                            <td className="py-3 px-3 text-slate-600">{s.isDefaulter ? `${s.neededFor75} in a row` : 'On track'}</td>
-                            <td className="py-3 px-4 text-right">
+                            </TableCell>
+                            <TableCell className="text-slate-600">{s.isDefaulter ? `${s.neededFor75} in a row` : 'On track'}</TableCell>
+                            <TableCell align="right">
                               {s.isDefaulter && (
                                 <Button size="sm" icon={Mail} onClick={() => sendWarning(s)}>
                                   Send warning
                                 </Button>
                               )}
-                            </td>
-                          </tr>
+                            </TableCell>
+                          </TableRow>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
                 )}
               </Card>
             );
@@ -476,20 +485,18 @@ export const HODPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, onOp
             Absences between {review && formatDate(review.leave.startDate)} and {review && formatDate(review.leave.endDate)} will be marked excused.
           </Notice>
         )}
-        <Field
+        <TextField
+          id="review-comment"
           label={review?.decision === 'REJECTED' ? 'Reason for rejecting' : 'Comment (optional)'}
-          htmlFor="review-comment"
-          hint="The student sees this."
-        >
-          <textarea
-            id="review-comment"
-            rows={3}
-            maxLength={300}
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            className={`${inputClass} h-auto py-2`}
-          />
-        </Field>
+          required={review?.decision === 'REJECTED'}
+          helperText="The student sees this."
+          multiline
+          minRows={3}
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          slotProps={{ htmlInput: { maxLength: 300 } }}
+          sx={{ mt: review?.decision === 'APPROVED' ? 0 : 1 }}
+        />
       </Modal>
     </div>
   );

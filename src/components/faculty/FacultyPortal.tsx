@@ -13,7 +13,6 @@ import {
   Card,
   CardHeader,
   EmptyState,
-  Field,
   Modal,
   Notice,
   useTabNotice,
@@ -23,10 +22,19 @@ import {
   StatCard,
   StatusBadge,
   formatDate,
-  inputClass,
   lectureName,
-  selectClass,
+  SelectField,
+  SearchField,
+  AttendancePicker,
 } from '@/components/ui';
+import TextField from '@mui/material/TextField';
+import ButtonBase from '@mui/material/ButtonBase';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -366,18 +374,7 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
             title="Take attendance"
             description="Start a lecture, mark the exceptions, then submit. Submitted lectures are locked."
             actions={
-              <select
-                aria-label="Class"
-                value={sectionId}
-                onChange={(e) => goTakeAttendance(e.target.value)}
-                className={`${selectClass} sm:min-w-64`}
-              >
-                {mySections.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {classLabel(s.id)}
-                  </option>
-                ))}
-              </select>
+              <SelectField ariaLabel="Class" value={sectionId} onChange={goTakeAttendance} minWidth={256} options={mySections.map((s) => ({ value: s.id, label: classLabel(s.id) }))} />
             }
           />
 
@@ -397,19 +394,23 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
                     description={`${classLabel(sectionId)} · ${currentSection?.studentCount ?? 0} students`}
                   />
                   <div className="mt-5 grid sm:grid-cols-[10rem_1fr] gap-4">
-                    <Field label="Date" htmlFor="lec-date">
-                      <input id="lec-date" type="date" max={today()} value={newDate} onChange={(e) => setNewDate(e.target.value)} className={inputClass} />
-                    </Field>
-                    <Field label="Topic" htmlFor="lec-title" hint="Optional. Shown to students in their history.">
-                      <input
-                        id="lec-title"
-                        value={newTitle}
-                        onChange={(e) => setNewTitle(e.target.value)}
-                        placeholder="e.g. AVL tree rotations"
-                        maxLength={120}
-                        className={inputClass}
-                      />
-                    </Field>
+                    <TextField
+                      id="lec-date"
+                      label="Date"
+                      type="date"
+                      value={newDate}
+                      onChange={(e) => setNewDate(e.target.value)}
+                      slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: today() } }}
+                    />
+                    <TextField
+                      id="lec-title"
+                      label="Topic"
+                      value={newTitle}
+                      onChange={(e) => setNewTitle(e.target.value)}
+                      placeholder="e.g. AVL tree rotations"
+                      helperText="Optional. Shown to students in their history."
+                      slotProps={{ inputLabel: { shrink: true }, htmlInput: { maxLength: 120 } }}
+                    />
                   </div>
                   <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
                     <p className="text-xs text-slate-500">
@@ -474,17 +475,19 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
                   <div className="text-lg font-bold text-slate-800">{records.length}</div>
                 </div>
                 {ATTENDANCE_ORDER.map((k) => (
-                  <button
+                  <ButtonBase
                     key={k}
                     onClick={() => setStatusFilter(statusFilter === k ? 'ALL' : k)}
                     aria-pressed={statusFilter === k}
+                    title={`Show only ${ATTENDANCE_STATUS[k].label.toLowerCase()}`}
                     className={`rounded-lg border p-2 text-center transition-colors ${
                       statusFilter === k ? 'border-brand-600 ring-2 ring-brand-100' : 'border-slate-200 hover:border-slate-300'
                     }`}
+                    sx={{ display: 'block', borderRadius: 2 }}
                   >
                     <div className="text-2xs text-slate-500">{ATTENDANCE_STATUS[k].label}</div>
-                    <div className="text-lg font-bold text-slate-800">{counts[k]}</div>
-                  </button>
+                    <div className="text-lg font-bold" style={{ color: counts[k] ? ATTENDANCE_STATUS[k].color : undefined }}>{counts[k]}</div>
+                  </ButtonBase>
                 ))}
               </div>
 
@@ -494,16 +497,7 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
 
               {/* Toolbar */}
               <div className="px-5 pb-4 flex flex-wrap items-center gap-2">
-                <div className="relative flex-1 min-w-48">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                  <input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search name or roll number"
-                    aria-label="Search students"
-                    className={`${inputClass} pl-9`}
-                  />
-                </div>
+                <SearchField value={search} onChange={setSearch} placeholder="Search name or roll number" ariaLabel="Search students" />
                 {!openSession.isLocked && (
                   <>
                     <Button variant="success" size="sm" icon={CheckCircle2} onClick={() => markAll('PRESENT')}>
@@ -539,82 +533,52 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
                           {r.remarks && <span className="text-xs text-slate-500">{r.remarks}</span>}
                         </div>
                       ) : (
-                        <div role="radiogroup" aria-label={`Status for ${r.studentName}`} className="mt-2 grid grid-cols-6 gap-1.5">
-                          {ATTENDANCE_ORDER.map((k) => (
-                            <button
-                              key={k}
-                              role="radio"
-                              aria-checked={r.status === k}
-                              aria-label={ATTENDANCE_STATUS[k].label}
-                              onClick={() => setStatus(r.studentId, k)}
-                              className={`h-10 rounded-md text-sm font-bold ${
-                                r.status === k ? ATTENDANCE_STATUS[k].solid : 'bg-slate-100 text-slate-500'
-                              }`}
-                            >
-                              {ATTENDANCE_STATUS[k].short}
-                            </button>
-                          ))}
+                        <div className="mt-2">
+                          <AttendancePicker fullWidth value={r.status} onChange={(k) => setStatus(r.studentId, k)} label={`Status for ${r.studentName}`} />
                         </div>
                       )}
                     </li>
                   ))}
                 </ul>
-                <div className="hidden sm:block table-scroll border-t border-slate-200">
-                  <table className="w-full text-left text-sm">
-                    <thead className="bg-slate-50 text-xs text-slate-500">
-                      <tr>
-                        <th className="py-2.5 px-5 font-semibold">Roll no.</th>
-                        <th className="py-2.5 px-3 font-semibold">Student</th>
-                        <th className="py-2.5 px-3 font-semibold">{openSession.isLocked ? 'Status' : 'Mark'}</th>
-                        <th className="py-2.5 px-5 font-semibold">Remarks</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
+                <TableContainer className="hidden sm:block border-t border-slate-200">
+                  <Table size="small" sx={{ minWidth: 720 }}>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ pl: 2.5 }}>Roll no.</TableCell>
+                        <TableCell>Student</TableCell>
+                        <TableCell>{openSession.isLocked ? 'Status' : 'Mark'}</TableCell>
+                        <TableCell sx={{ pr: 2.5 }}>Remarks</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
                       {visibleRecords.map((r) => (
-                        <tr key={r.studentId} className={r.status === 'ABSENT' ? 'bg-rose-50/40' : ''}>
-                          <td className="py-2.5 px-5 font-mono text-xs text-slate-600">{r.enrollmentNumber}</td>
-                          <td className="py-2.5 px-3 font-semibold text-slate-800">{r.studentName}</td>
-                          <td className="py-2.5 px-3">
+                        <TableRow key={r.studentId} hover sx={r.status === 'ABSENT' ? { bgcolor: 'rgba(253,236,231,.4)' } : undefined}>
+                          <TableCell sx={{ pl: 2.5, fontFamily: 'monospace', fontSize: 12, color: 'text.secondary' }}>{r.enrollmentNumber}</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>{r.studentName}</TableCell>
+                          <TableCell>
                             {openSession.isLocked ? (
                               <StatusBadge status={r.status} />
                             ) : (
-                              <div role="radiogroup" aria-label={`Status for ${r.studentName}`} className="flex gap-1">
-                                {ATTENDANCE_ORDER.map((k) => (
-                                  <button
-                                    key={k}
-                                    role="radio"
-                                    aria-checked={r.status === k}
-                                    title={ATTENDANCE_STATUS[k].label}
-                                    onClick={() => setStatus(r.studentId, k)}
-                                    className={`w-8 h-8 rounded-md text-xs font-bold transition-colors ${
-                                      r.status === k ? ATTENDANCE_STATUS[k].solid : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                                    }`}
-                                  >
-                                    {ATTENDANCE_STATUS[k].short}
-                                  </button>
-                                ))}
-                              </div>
+                              <AttendancePicker value={r.status} onChange={(k) => setStatus(r.studentId, k)} label={`Status for ${r.studentName}`} />
                             )}
-                          </td>
-                          <td className="py-2.5 px-5">
+                          </TableCell>
+                          <TableCell sx={{ pr: 2.5 }}>
                             {openSession.isLocked ? (
                               <span className="text-slate-500">{r.remarks || '—'}</span>
                             ) : (
-                              <input
+                              <TextField
                                 value={r.remarks ?? ''}
                                 onChange={(e) => setRemark(r.studentId, e.target.value)}
                                 placeholder="Optional"
-                                aria-label={`Remark for ${r.studentName}`}
-                                maxLength={200}
-                                className={`${inputClass} h-8`}
+                                slotProps={{ htmlInput: { 'aria-label': `Remark for ${r.studentName}`, maxLength: 200, style: { paddingBlock: 6 } } }}
                               />
                             )}
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
                 </>
               )}
 
@@ -645,14 +609,13 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
           <PageHeader title="Sessions" description="Every lecture you have started. Open one to view it or continue a draft." />
           <Card padded={false}>
             <div className="p-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200">
-              <select aria-label="Class" value={sessionsClass} onChange={(e) => setSessionsClass(e.target.value)} className={selectClass}>
-                <option value="ALL">All classes</option>
-                {mySections.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {classLabel(s.id)}
-                  </option>
-                ))}
-              </select>
+              <SelectField
+                ariaLabel="Class"
+                value={sessionsClass}
+                onChange={setSessionsClass}
+                minWidth={220}
+                options={[{ value: 'ALL', label: 'All classes' }, ...mySections.map((s) => ({ value: s.id, label: classLabel(s.id) }))]}
+              />
               <SegmentedControl
                 label="Lecture state"
                 value={sessionsState}
@@ -679,33 +642,33 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
                   />
                 );
               return (
-                <div className="table-scroll">
-                  <table className="w-full text-left text-sm">
-                    <thead className="bg-slate-50 text-xs text-slate-500">
-                      <tr>
-                        <th className="py-2.5 px-4 font-semibold">Date</th>
-                        <th className="py-2.5 px-3 font-semibold">Class</th>
-                        <th className="py-2.5 px-3 font-semibold">Lecture</th>
-                        <th className="py-2.5 px-3 font-semibold">Present</th>
-                        <th className="py-2.5 px-3 font-semibold">State</th>
-                        <th className="py-2.5 px-4" />
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
+                <TableContainer>
+                  <Table size="small" sx={{ minWidth: 720 }}>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Date</TableCell>
+                        <TableCell>Class</TableCell>
+                        <TableCell>Lecture</TableCell>
+                        <TableCell>Present</TableCell>
+                        <TableCell>State</TableCell>
+                        <TableCell />
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
                       {rows.map((s) => (
-                        <tr key={s.id} className="hover:bg-slate-50">
-                          <td className="py-2.5 px-4 text-slate-600 whitespace-nowrap">{formatDate(s.lectureDate)}</td>
-                          <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">{classLabel(s.sectionId)}</td>
-                          <td className="py-2.5 px-3 font-semibold text-slate-800">
+                        <TableRow key={s.id} className="hover:bg-slate-50">
+                          <TableCell className="text-slate-600 whitespace-nowrap">{formatDate(s.lectureDate)}</TableCell>
+                          <TableCell className="text-slate-600 whitespace-nowrap">{classLabel(s.sectionId)}</TableCell>
+                          <TableCell className="font-semibold text-slate-800">
                             {lectureName(s)}
-                          </td>
-                          <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">
+                          </TableCell>
+                          <TableCell className="text-slate-600 whitespace-nowrap">
                             {s.summary.presentCount}/{s.summary.totalStudents} <span className="text-slate-400">({pct(s)}%)</span>
-                          </td>
-                          <td className="py-2.5 px-3">
+                          </TableCell>
+                          <TableCell>
                             {s.isLocked ? <Badge icon={Lock}>Locked</Badge> : <Badge tone="warn" icon={FileClock}>Draft</Badge>}
-                          </td>
-                          <td className="py-2.5 px-4 text-right">
+                          </TableCell>
+                          <TableCell align="right">
                             <Button
                               size="sm"
                               variant={s.isLocked ? 'ghost' : 'primary'}
@@ -718,12 +681,12 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
                             >
                               {s.isLocked ? 'View' : 'Continue'} <ArrowRight className="w-3.5 h-3.5" />
                             </Button>
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               );
             })()}
           </Card>
@@ -738,15 +701,20 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
             description="Students below the 75% attendance requirement, from locked lectures only."
             actions={
               <>
-                <select aria-label="Class" value={defaultersClassId} onChange={(e) => setDefaultersClassId(e.target.value)} className={selectClass}>
-                  {mySections.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {classLabel(s.id)}
-                    </option>
-                  ))}
-                </select>
+                <SelectField
+                  ariaLabel="Class"
+                  value={defaultersClassId}
+                  onChange={setDefaultersClassId}
+                  minWidth={220}
+                  options={mySections.map((s) => ({ value: s.id, label: classLabel(s.id) }))}
+                />
                 {section(defaultersClassId) && (
-                  <Button icon={Award} onClick={() => onOpenUniversityReport(section(defaultersClassId)!.courseId, defaultersClassId)}>
+                  <Button
+                    icon={Award}
+                    disabled={!(compliance[defaultersClassId] ?? []).length}
+                    title={(compliance[defaultersClassId] ?? []).length ? undefined : 'Available after the first lecture is locked'}
+                    onClick={() => onOpenUniversityReport(section(defaultersClassId)!.courseId, defaultersClassId)}
+                  >
                     Board report
                   </Button>
                 )}
@@ -774,39 +742,39 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
                   />
                 </div>
                 <Card padded={false}>
-                  <div className="table-scroll">
-                    <table className="w-full text-left text-sm">
-                      <thead className="bg-slate-50 text-xs text-slate-500">
-                        <tr>
-                          <th className="py-2.5 px-4 font-semibold">Roll no.</th>
-                          <th className="py-2.5 px-3 font-semibold">Student</th>
-                          <th className="py-2.5 px-3 font-semibold">Attended</th>
-                          <th className="py-2.5 px-3 font-semibold w-48">Attendance</th>
-                          <th className="py-2.5 px-4 font-semibold">To reach 75%</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
+                  <TableContainer>
+                    <Table size="small" sx={{ minWidth: 720 }}>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Roll no.</TableCell>
+                          <TableCell>Student</TableCell>
+                          <TableCell>Attended</TableCell>
+                          <TableCell className="w-48">Attendance</TableCell>
+                          <TableCell>To reach 75%</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
                         {stats.map((s) => (
-                          <tr key={s.studentId} className={s.isDefaulter ? 'bg-rose-50/40' : ''}>
-                            <td className="py-2.5 px-4 font-mono text-xs text-slate-600">{s.enrollmentNumber}</td>
-                            <td className="py-2.5 px-3 font-semibold text-slate-800">{s.fullName}</td>
-                            <td className="py-2.5 px-3 text-slate-600">
+                          <TableRow key={s.studentId} className={s.isDefaulter ? 'bg-rose-50/40' : ''}>
+                            <TableCell className="font-mono text-xs text-slate-600">{s.enrollmentNumber}</TableCell>
+                            <TableCell className="font-semibold text-slate-800">{s.fullName}</TableCell>
+                            <TableCell className="text-slate-600">
                               {s.attendedLectures}/{s.totalLectures}
-                            </td>
-                            <td className="py-2.5 px-3">
+                            </TableCell>
+                            <TableCell>
                               <div className="flex items-center gap-3">
                                 <span className={`w-12 font-bold ${s.isDefaulter ? 'text-rose-600' : 'text-emerald-700'}`}>{s.percentage}%</span>
                                 <div className="flex-1"><ProgressBar value={s.percentage} /></div>
                               </div>
-                            </td>
-                            <td className="py-2.5 px-4 text-slate-600">
+                            </TableCell>
+                            <TableCell className="text-slate-600">
                               {s.isDefaulter ? `${s.neededFor75} lectures in a row` : <span className="text-emerald-700">On track</span>}
-                            </td>
-                          </tr>
+                            </TableCell>
+                          </TableRow>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
                 </Card>
               </>
             );

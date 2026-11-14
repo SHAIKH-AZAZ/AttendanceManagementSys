@@ -1,5 +1,13 @@
 'use client';
 
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
+import TextField from '@mui/material/TextField';
+import MuiButton from '@mui/material/Button';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import type { PortalProps } from '@/lib/navigation';
@@ -11,7 +19,6 @@ import {
   Button,
   Card,
   EmptyState,
-  Field,
   LEAVE_TYPES,
   LeaveStatusBadge,
   Modal,
@@ -22,9 +29,8 @@ import {
   StatCard,
   StatusBadge,
   formatDate,
-  inputClass,
   lectureName,
-  selectClass,
+  SelectField,
 } from '@/components/ui';
 import { BookOpen, CalendarPlus, FileText, History, Paperclip, Send } from 'lucide-react';
 
@@ -254,55 +260,48 @@ export const StudentPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab }
           <PageHeader title="Lecture history" description="Every submitted lecture and how you were marked." />
           <Card padded={false}>
             <div className="p-4 flex flex-wrap gap-3 border-b border-slate-200">
-              <select aria-label="Course" value={historyCourse} onChange={(e) => setHistoryCourse(e.target.value)} className={selectClass}>
-                <option value="ALL">All courses</option>
-                {data.courses.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.code} · {c.title}
-                  </option>
-                ))}
-              </select>
-              <select
-                aria-label="Status"
+              <SelectField
+                ariaLabel="Course"
+                value={historyCourse}
+                onChange={setHistoryCourse}
+                minWidth={220}
+                options={[{ value: 'ALL', label: 'All courses' }, ...data.courses.map((c) => ({ value: c.code, label: `${c.code} · ${c.title}` }))]}
+              />
+              <SelectField<AttendanceStatus | 'ALL'>
+                ariaLabel="Status"
                 value={historyStatus}
-                onChange={(e) => setHistoryStatus(e.target.value as AttendanceStatus | 'ALL')}
-                className={selectClass}
-              >
-                <option value="ALL">All statuses</option>
-                {ATTENDANCE_ORDER.map((k) => (
-                  <option key={k} value={k}>
-                    {ATTENDANCE_STATUS[k].label}
-                  </option>
-                ))}
-              </select>
+                onChange={setHistoryStatus}
+                minWidth={180}
+                options={[{ value: 'ALL', label: 'All statuses' }, ...ATTENDANCE_ORDER.map((k) => ({ value: k, label: ATTENDANCE_STATUS[k].label }))]}
+              />
             </div>
             {history.length === 0 ? (
               <EmptyState icon={History} title="Nothing to show" description="No lectures match these filters." />
             ) : (
-              <div className="table-scroll">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-xs text-slate-500">
-                    <tr>
-                      <th className="py-2.5 px-4 font-semibold">Date</th>
-                      <th className="py-2.5 px-3 font-semibold">Course</th>
-                      <th className="py-2.5 px-3 font-semibold">Lecture</th>
-                      <th className="py-2.5 px-3 font-semibold">Status</th>
-                      <th className="py-2.5 px-4 font-semibold">Remark</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
+              <TableContainer>
+                <Table size="small" sx={{ minWidth: 720 }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Date</TableCell>
+                      <TableCell>Course</TableCell>
+                      <TableCell>Lecture</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell>Remark</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
                     {history.map((h) => (
-                      <tr key={h.sessionId} className={h.status === 'ABSENT' ? 'bg-rose-50/40' : ''}>
-                        <td className="py-2.5 px-4 text-slate-600 whitespace-nowrap">{formatDate(h.lectureDate)}</td>
-                        <td className="py-2.5 px-3 text-slate-600">{h.courseCode}</td>
-                        <td className="py-2.5 px-3 font-semibold text-slate-800">{lectureName(h)}</td>
-                        <td className="py-2.5 px-3"><StatusBadge status={h.status} /></td>
-                        <td className="py-2.5 px-4 text-slate-500">{h.remarks || '—'}</td>
-                      </tr>
+                      <TableRow key={h.sessionId} className={h.status === 'ABSENT' ? 'bg-rose-50/40' : ''}>
+                        <TableCell className="text-slate-600 whitespace-nowrap">{formatDate(h.lectureDate)}</TableCell>
+                        <TableCell className="text-slate-600">{h.courseCode}</TableCell>
+                        <TableCell className="font-semibold text-slate-800">{lectureName(h)}</TableCell>
+                        <TableCell><StatusBadge status={h.status} /></TableCell>
+                        <TableCell className="text-slate-500">{h.remarks || '—'}</TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </TableBody>
+                </Table>
+              </TableContainer>
             )}
           </Card>
         </>
@@ -380,46 +379,64 @@ export const StudentPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab }
           </>
         }
       >
-        <form id="leave-form" onSubmit={submitLeave} className="space-y-4">
-          <Field label="Type" htmlFor="leave-type" hint={LEAVE_TYPES[leaveType].hint}>
-            <select id="leave-type" value={leaveType} onChange={(e) => setLeaveType(e.target.value as LeaveType)} className={inputClass}>
-              {(Object.keys(LEAVE_TYPES) as LeaveType[]).map((k) => (
-                <option key={k} value={k}>
-                  {LEAVE_TYPES[k].label}
-                </option>
-              ))}
-            </select>
-          </Field>
+        <form id="leave-form" onSubmit={submitLeave} className="flex flex-col gap-4 pt-1">
+          <SelectField<LeaveType>
+            id="leave-type"
+            label="Type"
+            value={leaveType}
+            onChange={setLeaveType}
+            helperText={LEAVE_TYPES[leaveType].hint}
+            options={(Object.keys(LEAVE_TYPES) as LeaveType[]).map((k) => ({ value: k, label: LEAVE_TYPES[k].label }))}
+          />
           <div className="grid grid-cols-2 gap-3">
-            <Field label="From" htmlFor="leave-from">
-              <input id="leave-from" type="date" required value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputClass} />
-            </Field>
-            <Field label="To" htmlFor="leave-to">
-              <input id="leave-to" type="date" required min={startDate} value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputClass} />
-            </Field>
+            <TextField
+              id="leave-from"
+              label="From"
+              type="date"
+              required
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+            <TextField
+              id="leave-to"
+              label="To"
+              type="date"
+              required
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              error={!!dateError}
+              slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: startDate } }}
+            />
           </div>
           {dateError && <p className="text-xs text-rose-600 -mt-2">{dateError}</p>}
-          <Field label="Reason" htmlFor="leave-reason">
-            <textarea
-              id="leave-reason"
-              required
-              rows={3}
-              maxLength={500}
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="What happened, briefly"
-              className={`${inputClass} h-auto py-2`}
-            />
-          </Field>
-          <Field label="Proof (optional)" htmlFor="leave-file" hint="Only the file name is recorded for now; file storage isn't set up yet.">
-            <input
-              id="leave-file"
-              type="file"
-              accept=".pdf,image/*"
-              onChange={(e) => setFileName(e.target.files?.[0]?.name ?? '')}
-              className="block w-full text-sm text-slate-600 file:mr-3 file:h-9 file:px-3 file:rounded-lg file:border file:border-slate-200 file:bg-white file:text-sm file:font-semibold file:text-slate-700 hover:file:bg-slate-50"
-            />
-          </Field>
+          <TextField
+            id="leave-reason"
+            label="Reason"
+            required
+            multiline
+            minRows={3}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="What happened, briefly"
+            slotProps={{ htmlInput: { maxLength: 500 } }}
+          />
+          <div>
+            <MuiButton component="label" variant="outlined" color="inherit" startIcon={<Paperclip size={16} />} sx={{ borderColor: 'divider' }}>
+              {fileName ? 'Change proof' : 'Attach proof (optional)'}
+              <input
+                id="leave-file"
+                type="file"
+                hidden
+                accept=".pdf,image/*"
+                onChange={(e) => setFileName(e.target.files?.[0]?.name ?? '')}
+              />
+            </MuiButton>
+            <p className="mt-1.5 text-2xs text-slate-500">
+              {fileName ? <><strong className="text-slate-700">{fileName}</strong> · </> : null}
+              Only the file name is recorded for now; file storage isn&apos;t set up yet.
+            </p>
+          </div>
         </form>
       </Modal>
     </div>

@@ -1,5 +1,12 @@
 'use client';
 
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
+import TextField from '@mui/material/TextField';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMeta } from '@/hooks/useMeta';
 import type { PortalProps } from '@/lib/navigation';
@@ -10,13 +17,12 @@ import {
   Card,
   CardHeader,
   EmptyState,
-  Field,
   Notice,
   useTabNotice,
   PageHeader,
   StatCard,
-  inputClass,
-  selectClass,
+  SelectField,
+  SearchField,
 } from '@/components/ui';
 import {
   AlertTriangle,
@@ -296,37 +302,30 @@ export const AdminPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, on
           <div className="grid lg:grid-cols-2 gap-5">
             <Card>
               <CardHeader title="1. Paste rows" description="One student per line: roll number, full name, email." />
-              <div className="mt-4 space-y-4">
-                <Field label="Class" htmlFor="import-class">
-                  <select
-                    id="import-class"
-                    value={importSectionId}
-                    onChange={(e) => {
-                      setImportSectionId(e.target.value);
-                      setPreview(null);
-                    }}
-                    className={inputClass}
-                  >
-                    {meta?.sections.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {classLabel(s.id)} ({s.studentCount} students)
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="CSV rows" htmlFor="import-csv">
-                  <textarea
-                    id="import-csv"
-                    rows={8}
-                    value={importText}
-                    onChange={(e) => {
-                      setImportText(e.target.value);
-                      setPreview(null);
-                    }}
-                    placeholder="CS-2026-101, Harshit Mehta, harshit.m@univ.edu"
-                    className={`${inputClass} h-auto py-2 font-mono text-xs`}
-                  />
-                </Field>
+              <div className="mt-4 flex flex-col gap-4">
+                <SelectField
+                  id="import-class"
+                  label="Class"
+                  value={importSectionId}
+                  onChange={(v) => {
+                    setImportSectionId(v);
+                    setPreview(null);
+                  }}
+                  options={(meta?.sections ?? []).map((s) => ({ value: s.id, label: `${classLabel(s.id)} (${s.studentCount} students)` }))}
+                />
+                <TextField
+                  id="import-csv"
+                  label="CSV rows"
+                  multiline
+                  minRows={8}
+                  value={importText}
+                  onChange={(e) => {
+                    setImportText(e.target.value);
+                    setPreview(null);
+                  }}
+                  placeholder="CS-2026-101, Harshit Mehta, harshit.m@univ.edu"
+                  slotProps={{ inputLabel: { shrink: true }, htmlInput: { style: { fontFamily: 'monospace', fontSize: 12 } } }}
+                />
                 <div className="flex flex-wrap gap-2">
                   <Button
                     variant="ghost"
@@ -394,37 +393,37 @@ export const AdminPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, on
             {!meta?.sections.length ? (
               <EmptyState icon={Award} title="No classes" />
             ) : (
-              <div className="table-scroll">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-xs text-slate-500">
-                    <tr>
-                      <th className="py-2.5 px-4 font-semibold">Course</th>
-                      <th className="py-2.5 px-3 font-semibold">Class</th>
-                      <th className="py-2.5 px-3 font-semibold">Faculty</th>
-                      <th className="py-2.5 px-3 font-semibold">Students</th>
-                      <th className="py-2.5 px-4" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
+              <TableContainer>
+                <Table size="small" sx={{ minWidth: 720 }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Course</TableCell>
+                      <TableCell>Class</TableCell>
+                      <TableCell>Faculty</TableCell>
+                      <TableCell>Students</TableCell>
+                      <TableCell />
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
                     {meta.sections.map((s) => (
-                      <tr key={s.id}>
-                        <td className="py-3 px-4">
+                      <TableRow key={s.id}>
+                        <TableCell>
                           <span className="font-mono text-xs text-slate-500 mr-2">{course(s.courseId)?.code}</span>
                           <span className="font-semibold text-slate-800">{course(s.courseId)?.title}</span>
-                        </td>
-                        <td className="py-3 px-3 text-slate-600">{s.name}</td>
-                        <td className="py-3 px-3 text-slate-600">{s.facultyName}</td>
-                        <td className="py-3 px-3 text-slate-600">{s.studentCount}</td>
-                        <td className="py-3 px-4 text-right">
+                        </TableCell>
+                        <TableCell className="text-slate-600">{s.name}</TableCell>
+                        <TableCell className="text-slate-600">{s.facultyName}</TableCell>
+                        <TableCell className="text-slate-600">{s.studentCount}</TableCell>
+                        <TableCell align="right">
                           <Button size="sm" icon={Award} onClick={() => onOpenUniversityReport(s.courseId, s.id)}>
                             Open report
                           </Button>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </TableBody>
+                </Table>
+              </TableContainer>
             )}
           </Card>
         </>
@@ -436,52 +435,42 @@ export const AdminPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, on
           <PageHeader title="Audit log" description="Sign-ins, attendance submissions, leave decisions and account changes. Entries can't be edited." />
           <Card padded={false}>
             <div className="p-4 flex flex-wrap gap-3 border-b border-slate-200">
-              <div className="relative flex-1 min-w-56">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                <input
-                  value={auditQuery}
-                  onChange={(e) => setAuditQuery(e.target.value)}
-                  placeholder="Search person or details"
-                  aria-label="Search audit log"
-                  className={`${inputClass} pl-9`}
-                />
-              </div>
-              <select aria-label="Action" value={auditAction} onChange={(e) => setAuditAction(e.target.value)} className={selectClass}>
-                <option value="ALL">All actions</option>
-                {actions.map((a) => (
-                  <option key={a} value={a}>
-                    {a.replaceAll('_', ' ').toLowerCase()}
-                  </option>
-                ))}
-              </select>
+              <SearchField value={auditQuery} onChange={setAuditQuery} placeholder="Search person or details" ariaLabel="Search audit log" />
+              <SelectField
+                ariaLabel="Action"
+                value={auditAction}
+                onChange={setAuditAction}
+                minWidth={200}
+                options={[{ value: 'ALL', label: 'All actions' }, ...actions.map((a) => ({ value: a, label: a.replaceAll('_', ' ').toLowerCase() }))]}
+              />
             </div>
             {visibleLogs.length === 0 ? (
               <EmptyState icon={History} title="No matching entries" />
             ) : (
-              <div className="table-scroll">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-xs text-slate-500">
-                    <tr>
-                      <th className="py-2.5 px-4 font-semibold">When</th>
-                      <th className="py-2.5 px-3 font-semibold">Who</th>
-                      <th className="py-2.5 px-3 font-semibold">Action</th>
-                      <th className="py-2.5 px-4 font-semibold">Details</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
+              <TableContainer>
+                <Table size="small" sx={{ minWidth: 720 }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>When</TableCell>
+                      <TableCell>Who</TableCell>
+                      <TableCell>Action</TableCell>
+                      <TableCell>Details</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
                     {visibleLogs.map((l) => (
-                      <tr key={l.id} className="align-top">
-                        <td className="py-2.5 px-4 text-xs text-slate-500 whitespace-nowrap">{when(l.timestamp)}</td>
-                        <td className="py-2.5 px-3 font-semibold text-slate-800 whitespace-nowrap">{l.userName}</td>
-                        <td className="py-2.5 px-3">
+                      <TableRow key={l.id} className="align-top">
+                        <TableCell className="text-xs text-slate-500 whitespace-nowrap">{when(l.timestamp)}</TableCell>
+                        <TableCell className="font-semibold text-slate-800 whitespace-nowrap">{l.userName}</TableCell>
+                        <TableCell>
                           <Badge>{l.action.replaceAll('_', ' ').toLowerCase()}</Badge>
-                        </td>
-                        <td className="py-2.5 px-4 text-slate-600 min-w-72">{l.details}</td>
-                      </tr>
+                        </TableCell>
+                        <TableCell className="text-slate-600 min-w-72">{l.details}</TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </TableBody>
+                </Table>
+              </TableContainer>
             )}
           </Card>
         </>

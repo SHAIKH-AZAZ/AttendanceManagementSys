@@ -1,79 +1,107 @@
 'use client';
 
-import React, { useEffect, useId, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, Info, Loader2, X } from 'lucide-react';
+/**
+ * AttendEASE365 UI kit, built on Material UI. Portals import from here only,
+ * so swapping internals never touches the screens.
+ */
+import React, { useState } from 'react';
+import MuiButton from '@mui/material/Button';
+import MuiCard from '@mui/material/Card';
+import CardActionArea from '@mui/material/CardActionArea';
+import Chip from '@mui/material/Chip';
+import Alert from '@mui/material/Alert';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import IconButton from '@mui/material/IconButton';
+import LinearProgress from '@mui/material/LinearProgress';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import Typography from '@mui/material/Typography';
+import Stack from '@mui/material/Stack';
+import Box from '@mui/material/Box';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import TextField from '@mui/material/TextField';
+import MenuItem from '@mui/material/MenuItem';
+import InputAdornment from '@mui/material/InputAdornment';
+import { useTheme } from '@mui/material/styles';
+import { Info, Search, X } from 'lucide-react';
+import { TOKENS } from '@/theme';
 import type { AttendanceStatus, LeaveStatus, LeaveType } from '@/types';
 
-const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ');
+/* ------------------------------------------------------------------ Tones */
+
+export type Tone = 'neutral' | 'accent' | 'good' | 'bad' | 'warn' | 'info' | 'violet' | 'sky';
+
+/** Soft background, text and border colours per tone (chips, tiles). */
+export const TONES: Record<Tone, { bg: string; fg: string; border: string }> = {
+  neutral: { bg: TOKENS.fill, fg: '#3B4860', border: TOKENS.rule },
+  accent: { bg: TOKENS.accentTint, fg: TOKENS.accentInk, border: '#C7D7FE' },
+  good: { bg: TOKENS.goodTint, fg: TOKENS.goodInk, border: '#C6F0B3' },
+  bad: { bg: TOKENS.badTint, fg: TOKENS.badInk, border: '#F6BBA6' },
+  warn: { bg: TOKENS.warnTint, fg: '#92400E', border: '#FDE68A' },
+  info: { bg: '#EFF6FF', fg: '#1D4ED8', border: '#BFDBFE' },
+  violet: { bg: TOKENS.violetTint, fg: '#6D28D9', border: '#DDD6FE' },
+  sky: { bg: TOKENS.skyTint, fg: TOKENS.sky, border: '#BAE6FD' },
+};
+
+const TONE_TEXT: Record<Tone, string> = {
+  neutral: TOKENS.ink,
+  accent: TOKENS.accentInk,
+  good: TOKENS.goodInk,
+  bad: TOKENS.bad,
+  warn: '#B45309',
+  info: '#1D4ED8',
+  violet: '#6D28D9',
+  sky: TOKENS.sky,
+};
 
 /* ------------------------------------------------------------------ Button */
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success';
 
-const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary: 'bg-brand-600 hover:bg-brand-700 text-white border-transparent',
-  secondary: 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200 hover:border-slate-300',
-  ghost: 'bg-transparent hover:bg-slate-100 text-slate-700 border-transparent',
-  danger: 'bg-white hover:bg-rose-50 text-rose-700 border-rose-200',
-  success: 'bg-white hover:bg-emerald-50 text-emerald-700 border-emerald-200',
-};
-
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface ButtonProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'color'> {
   variant?: ButtonVariant;
   size?: 'sm' | 'md';
   icon?: React.ElementType;
   loading?: boolean;
 }
 
-export function Button({
-  variant = 'secondary',
-  size = 'md',
-  icon: Icon,
-  loading,
-  className,
-  children,
-  disabled,
-  type = 'button',
-  ...rest
-}: ButtonProps) {
+const VARIANT_PROPS: Record<ButtonVariant, { variant: 'contained' | 'outlined' | 'text'; color: 'primary' | 'inherit' | 'error' | 'success' }> = {
+  primary: { variant: 'contained', color: 'primary' },
+  secondary: { variant: 'outlined', color: 'inherit' },
+  ghost: { variant: 'text', color: 'inherit' },
+  danger: { variant: 'outlined', color: 'error' },
+  success: { variant: 'outlined', color: 'success' },
+};
+
+export function Button({ variant = 'secondary', size = 'md', icon: Icon, loading, children, type = 'button', ...rest }: ButtonProps) {
+  const v = VARIANT_PROPS[variant];
+  const iconSize = size === 'md' ? 16 : 14;
   return (
-    <button
+    <MuiButton
+      {...v}
       type={type}
-      disabled={disabled || loading}
-      className={cx(
-        'inline-flex items-center justify-center gap-2 rounded-lg border font-semibold whitespace-nowrap transition-colors',
-        'disabled:opacity-50 disabled:pointer-events-none',
-        size === 'md' ? 'h-10 px-4 text-sm' : 'h-8 px-3 text-xs',
-        BUTTON_VARIANTS[variant],
-        className
-      )}
-      {...rest}
+      size={size === 'md' ? 'medium' : 'small'}
+      loading={loading}
+      loadingPosition={Icon ? 'start' : 'center'}
+      startIcon={Icon ? <Icon size={iconSize} /> : undefined}
+      sx={variant === 'secondary' ? { borderColor: 'divider', bgcolor: 'background.paper', color: 'text.primary' } : undefined}
+      {...(rest as object)}
     >
-      {loading ? (
-        <Loader2 className="w-4 h-4 animate-spin" />
-      ) : (
-        Icon && <Icon className={size === 'md' ? 'w-4 h-4' : 'w-3.5 h-3.5'} />
-      )}
       {children}
-    </button>
+    </MuiButton>
   );
 }
 
 /* -------------------------------------------------------------------- Card */
 
-export function Card({
-  className,
-  children,
-  padded = true,
-}: {
-  className?: string;
-  children: React.ReactNode;
-  padded?: boolean;
-}) {
+export function Card({ className, children, padded = true }: { className?: string; children: React.ReactNode; padded?: boolean }) {
   return (
-    <div className={cx('bg-white border border-slate-200 rounded-2xl shadow-sm', padded && 'p-5', className)}>
+    <MuiCard className={className} sx={{ p: padded ? 2.5 : 0, overflow: 'visible' }}>
       {children}
-    </div>
+    </MuiCard>
   );
 }
 
@@ -89,13 +117,23 @@ export function CardHeader({
   className?: string;
 }) {
   return (
-    <div className={cx('flex flex-wrap items-start justify-between gap-3', className)}>
-      <div className="min-w-0">
-        <h3 className="text-base font-semibold text-slate-800">{title}</h3>
-        {description && <p className="text-xs text-slate-500 mt-0.5">{description}</p>}
-      </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
-    </div>
+    <Stack direction="row" className={className} sx={{ gap: 1.5, alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap" }}>
+      <Box sx={{ minWidth: 0 }}>
+        <Typography variant="h3" component="h3">
+          {title}
+        </Typography>
+        {description && (
+          <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 0.25 }}>
+            {description}
+          </Typography>
+        )}
+      </Box>
+      {actions && (
+        <Stack direction="row" sx={{ gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+          {actions}
+        </Stack>
+      )}
+    </Stack>
   );
 }
 
@@ -113,33 +151,30 @@ export function PageHeader({
   back?: React.ReactNode;
 }) {
   return (
-    <div className="mb-6">
-      {back && <div className="mb-3">{back}</div>}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-[-0.02em] text-slate-800">{title}</h1>
-          {description && <p className="text-sm text-slate-500 mt-1 max-w-2xl">{description}</p>}
-        </div>
-        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
-      </div>
-    </div>
+    <Box sx={{ mb: 3 }}>
+      {back && <Box sx={{ mb: 1.5 }}>{back}</Box>}
+      <Stack direction="row" sx={{ gap: 2, alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap" }}>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="h1" component="h1">
+            {title}
+          </Typography>
+          {description && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: "42rem" }}>
+              {description}
+            </Typography>
+          )}
+        </Box>
+        {actions && (
+          <Stack direction="row" sx={{ gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+            {actions}
+          </Stack>
+        )}
+      </Stack>
+    </Box>
   );
 }
 
 /* ---------------------------------------------------------------- StatCard */
-
-type Tone = 'neutral' | 'accent' | 'good' | 'bad' | 'warn' | 'info' | 'violet' | 'sky';
-
-const TONE_TEXT: Record<Tone, string> = {
-  neutral: 'text-slate-800',
-  accent: 'text-brand-700',
-  good: 'text-emerald-700',
-  bad: 'text-rose-600',
-  warn: 'text-amber-700',
-  info: 'text-blue-700',
-  violet: 'text-violet-700',
-  sky: 'text-sky-700',
-};
 
 export function StatCard({
   label,
@@ -157,37 +192,41 @@ export function StatCard({
   onClick?: () => void;
 }) {
   const body = (
-    <>
-      <div className="flex items-center justify-between gap-2 text-xs font-medium text-slate-500">
-        <span>{label}</span>
-        {Icon && <Icon className={cx('w-4 h-4', TONE_TEXT[tone === 'neutral' ? 'accent' : tone])} />}
-      </div>
-      <div className={cx('mt-1.5 text-2xl font-bold tracking-[-0.02em]', TONE_TEXT[tone])}>{value}</div>
-      {hint && <div className="mt-1 text-xs text-slate-500">{hint}</div>}
-    </>
+    <Box sx={{ p: 2.5, height: '100%', width: '100%' }}>
+      <Stack direction="row" sx={{ gap: 1, alignItems: "center", justifyContent: "space-between" }}>
+        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+          {label}
+        </Typography>
+        {Icon && (
+          <Box component="span" sx={{ color: TONE_TEXT[tone === 'neutral' ? 'accent' : tone], display: 'flex' }}>
+            <Icon size={16} />
+          </Box>
+        )}
+      </Stack>
+      <Typography sx={{ mt: 0.75, fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em', color: TONE_TEXT[tone] }}>
+        {value}
+      </Typography>
+      {hint && (
+        <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 0.5 }}>
+          {hint}
+        </Typography>
+      )}
+    </Box>
   );
-  const cls = 'flex flex-col justify-start bg-white border border-slate-200 rounded-2xl shadow-sm p-5 text-left';
-  return onClick ? (
-    <button onClick={onClick} className={cx(cls, 'lift w-full hover:border-brand-200')}>
-      {body}
-    </button>
-  ) : (
-    <div className={cls}>{body}</div>
+  return (
+    <MuiCard sx={{ height: '100%' }}>
+      {onClick ? (
+        <CardActionArea onClick={onClick} sx={{ height: '100%', alignItems: 'flex-start', display: 'flex', flexDirection: 'column' }}>
+          {body}
+        </CardActionArea>
+      ) : (
+        body
+      )}
+    </MuiCard>
   );
 }
 
 /* ------------------------------------------------------------------- Badge */
-
-const BADGE_TONES: Record<Tone, string> = {
-  neutral: 'bg-slate-100 text-slate-700 border-slate-200',
-  accent: 'bg-brand-50 text-brand-700 border-brand-200',
-  good: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  bad: 'bg-rose-50 text-rose-700 border-rose-200',
-  warn: 'bg-amber-50 text-amber-800 border-amber-200',
-  info: 'bg-blue-50 text-blue-700 border-blue-200',
-  violet: 'bg-violet-50 text-violet-700 border-violet-200',
-  sky: 'bg-sky-50 text-sky-700 border-sky-200',
-};
 
 export function Badge({
   tone = 'neutral',
@@ -200,32 +239,28 @@ export function Badge({
   children: React.ReactNode;
   className?: string;
 }) {
+  const t = TONES[tone];
   return (
-    <span
-      className={cx(
-        'inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-2xs font-semibold whitespace-nowrap',
-        BADGE_TONES[tone],
-        className
-      )}
-    >
-      {Icon && <Icon className="w-3 h-3" />}
-      {children}
-    </span>
+    <Chip
+      size="small"
+      variant="outlined"
+      label={children}
+      className={className}
+      icon={Icon ? <Icon size={12} /> : undefined}
+      sx={{ bgcolor: t.bg, color: t.fg, borderColor: t.border, '& .MuiChip-icon': { color: t.fg, ml: '6px' } }}
+    />
   );
 }
 
 /* ------------------------------------------------------- Attendance status */
 
-export const ATTENDANCE_STATUS: Record<
-  AttendanceStatus,
-  { label: string; short: string; tone: Tone; solid: string }
-> = {
-  PRESENT: { label: 'Present', short: 'P', tone: 'good', solid: 'bg-emerald-600 text-white' },
-  ABSENT: { label: 'Absent', short: 'A', tone: 'bad', solid: 'bg-rose-600 text-white' },
-  LATE: { label: 'Late', short: 'L', tone: 'warn', solid: 'bg-amber-500 text-white' },
-  EXCUSED: { label: 'Excused', short: 'E', tone: 'info', solid: 'bg-blue-600 text-white' },
-  MEDICAL_LEAVE: { label: 'Medical', short: 'M', tone: 'violet', solid: 'bg-violet-600 text-white' },
-  ON_DUTY: { label: 'On duty', short: 'O', tone: 'sky', solid: 'bg-sky-600 text-white' },
+export const ATTENDANCE_STATUS: Record<AttendanceStatus, { label: string; short: string; tone: Tone; color: string }> = {
+  PRESENT: { label: 'Present', short: 'P', tone: 'good', color: TOKENS.good },
+  ABSENT: { label: 'Absent', short: 'A', tone: 'bad', color: TOKENS.bad },
+  LATE: { label: 'Late', short: 'L', tone: 'warn', color: '#D97706' },
+  EXCUSED: { label: 'Excused', short: 'E', tone: 'info', color: '#2563EB' },
+  MEDICAL_LEAVE: { label: 'Medical', short: 'M', tone: 'violet', color: TOKENS.violet },
+  ON_DUTY: { label: 'On duty', short: 'O', tone: 'sky', color: '#0284C7' },
 };
 
 export const ATTENDANCE_ORDER = Object.keys(ATTENDANCE_STATUS) as AttendanceStatus[];
@@ -233,6 +268,56 @@ export const ATTENDANCE_ORDER = Object.keys(ATTENDANCE_STATUS) as AttendanceStat
 export function StatusBadge({ status }: { status: AttendanceStatus }) {
   const s = ATTENDANCE_STATUS[status];
   return <Badge tone={s.tone}>{s.label}</Badge>;
+}
+
+/**
+ * One-tap attendance picker (P / A / L / E / M / O). The selected button is
+ * filled with that status's colour.
+ */
+export function AttendancePicker({
+  value,
+  onChange,
+  label,
+  fullWidth,
+}: {
+  value: AttendanceStatus;
+  onChange: (s: AttendanceStatus) => void;
+  label: string;
+  fullWidth?: boolean;
+}) {
+  return (
+    <ToggleButtonGroup
+      exclusive
+      size="small"
+      value={value}
+      onChange={(_, v: AttendanceStatus | null) => v && onChange(v)}
+      aria-label={label}
+      fullWidth={fullWidth}
+      sx={{ gap: 0.5, '& .MuiToggleButtonGroup-grouped': { border: 0, borderRadius: '6px !important', m: 0 } }}
+    >
+      {ATTENDANCE_ORDER.map((k) => {
+        const s = ATTENDANCE_STATUS[k];
+        return (
+          <ToggleButton
+            key={k}
+            value={k}
+            aria-label={s.label}
+            title={s.label}
+            sx={{
+              minWidth: 32,
+              height: fullWidth ? 40 : 32,
+              fontWeight: 700,
+              color: 'text.secondary',
+              bgcolor: TOKENS.fill,
+              '&.Mui-selected, &.Mui-selected:hover': { bgcolor: s.color, color: '#fff' },
+            }}
+          >
+            {s.short}
+          </ToggleButton>
+        );
+      })}
+    </ToggleButtonGroup>
+  );
 }
 
 /* ------------------------------------------------------------------ Leave */
@@ -277,27 +362,38 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center text-center py-12 px-4">
-      <span className="w-12 h-12 rounded-xl bg-brand-100 text-brand-600 flex items-center justify-center">
-        <Icon className="w-6 h-6" />
-      </span>
-      <h3 className="mt-4 text-base font-semibold text-slate-800">{title}</h3>
-      {description && <p className="mt-1 text-sm text-slate-500 max-w-md">{description}</p>}
-      {action && <div className="mt-5">{action}</div>}
-    </div>
+    <Stack sx={{ py: 6, px: 2, alignItems: "center", textAlign: "center" }}>
+      <Box
+        sx={{
+          width: 48,
+          height: 48,
+          borderRadius: 3,
+          bgcolor: TOKENS.accentTint,
+          color: 'primary.main',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Icon size={24} />
+      </Box>
+      <Typography variant="h3" component="h3" sx={{ mt: 2 }}>
+        {title}
+      </Typography>
+      {description && (
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: "28rem" }}>
+          {description}
+        </Typography>
+      )}
+      {action && <Box sx={{ mt: 2.5 }}>{action}</Box>}
+    </Stack>
   );
 }
 
 /* ------------------------------------------------------------------ Notice */
 
-const NOTICE_TONES = {
-  success: { cls: 'bg-emerald-50 border-emerald-200 text-emerald-800', icon: CheckCircle2 },
-  error: { cls: 'bg-rose-50 border-rose-200 text-rose-800', icon: AlertCircle },
-  warn: { cls: 'bg-amber-50 border-amber-200 text-amber-900', icon: AlertCircle },
-  info: { cls: 'bg-brand-50 border-brand-200 text-brand-800', icon: Info },
-};
-
-export type NoticeTone = keyof typeof NOTICE_TONES;
+const SEVERITY = { success: 'success', error: 'error', warn: 'warning', info: 'info' } as const;
+export type NoticeTone = keyof typeof SEVERITY;
 
 export function Notice({
   tone = 'info',
@@ -310,17 +406,10 @@ export function Notice({
   onDismiss?: () => void;
   className?: string;
 }) {
-  const { cls, icon: Icon } = NOTICE_TONES[tone];
   return (
-    <div role={tone === 'error' ? 'alert' : 'status'} className={cx('flex items-start gap-2.5 p-3 rounded-xl border text-sm', cls, className)}>
-      <Icon className="w-4 h-4 mt-0.5 shrink-0" />
-      <div className="flex-1 min-w-0">{children}</div>
-      {onDismiss && (
-        <button onClick={onDismiss} aria-label="Dismiss" className="shrink-0 opacity-60 hover:opacity-100">
-          <X className="w-4 h-4" />
-        </button>
-      )}
-    </div>
+    <Alert severity={SEVERITY[tone]} onClose={onDismiss} className={className} variant="standard">
+      {children}
+    </Alert>
   );
 }
 
@@ -346,6 +435,7 @@ export function lectureName(s: { sessionNumber: number; sessionTitle: string }) 
 
 /* ------------------------------------------------------------------- Modal */
 
+/** Dialog with title, optional icon/description, body and action row. Focus trap, Escape and scroll lock come from MUI. */
 export function Modal({
   open,
   onClose,
@@ -365,107 +455,45 @@ export function Modal({
   footer?: React.ReactNode;
   size?: 'md' | 'lg';
 }) {
-  const titleId = useId();
-  const panelRef = useRef<HTMLDivElement>(null);
-  const bodyRef = useRef<HTMLDivElement>(null);
-  // Callers pass inline handlers; keep the latest in a ref so the effect below
-  // runs once per open (re-running it would steal focus on every keystroke).
-  const onCloseRef = useRef(onClose);
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  });
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onCloseRef.current();
-    document.addEventListener('keydown', onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const first =
-      bodyRef.current?.querySelector<HTMLElement>('input, select, textarea') ??
-      panelRef.current?.querySelector<HTMLElement>('[data-modal-footer] button:last-child');
-    first?.focus();
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
-
-  if (!open) return null;
+  const theme = useTheme();
+  const phone = useMediaQuery(theme.breakpoints.down('sm'));
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-slate-900/50 animate-fade-in"
-      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className={cx(
-          'bg-white w-full rounded-t-2xl sm:rounded-2xl shadow-lg max-h-[92vh] flex flex-col',
-          size === 'md' ? 'sm:max-w-md' : 'sm:max-w-2xl'
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth={size === 'md' ? 'xs' : 'sm'} fullScreen={phone && size === 'lg'}>
+      <DialogTitle component="div" sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, pr: 6 }}>
+        {Icon && (
+          <Box
+            sx={{
+              width: 40,
+              height: 40,
+              flexShrink: 0,
+              borderRadius: 2,
+              bgcolor: TOKENS.accentTint,
+              color: 'primary.main',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Icon size={20} />
+          </Box>
         )}
-      >
-        <div className="flex items-start gap-3 p-5 border-b border-slate-200">
-          {Icon && (
-            <span className="w-10 h-10 shrink-0 rounded-lg bg-brand-100 text-brand-600 flex items-center justify-center">
-              <Icon className="w-5 h-5" />
-            </span>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="h2" component="h2">
+            {title}
+          </Typography>
+          {description && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+              {description}
+            </Typography>
           )}
-          <div className="flex-1 min-w-0">
-            <h2 id={titleId} className="text-base font-semibold text-slate-800">
-              {title}
-            </h2>
-            {description && <p className="text-sm text-slate-500 mt-0.5">{description}</p>}
-          </div>
-          <button onClick={onClose} aria-label="Close" className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        {children && (
-          <div ref={bodyRef} className="p-5 overflow-y-auto">
-            {children}
-          </div>
-        )}
-        {footer && (
-          <div data-modal-footer className="flex flex-wrap justify-end gap-2 p-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl">
-            {footer}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ Fields */
-
-/** Inline (filter/toolbar) select: sized to content instead of full width. */
-export const selectClass =
-  'h-10 max-w-full pl-3 pr-8 bg-white border border-slate-200 rounded-lg text-base sm:text-sm text-slate-800 hover:border-slate-300 focus:outline-none focus:border-brand-600 focus:ring-3 focus:ring-brand-100';
-
-export const inputClass =
-  'w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-base sm:text-sm text-slate-800 placeholder-slate-400 hover:border-slate-300 focus:outline-none focus:border-brand-600 focus:ring-3 focus:ring-brand-100 disabled:bg-slate-50 disabled:text-slate-500';
-
-export function Field({
-  label,
-  hint,
-  children,
-  htmlFor,
-}: {
-  label: string;
-  hint?: React.ReactNode;
-  children: React.ReactNode;
-  htmlFor?: string;
-}) {
-  return (
-    <div>
-      <label htmlFor={htmlFor} className="block text-sm font-semibold text-slate-700 mb-1.5">
-        {label}
-      </label>
-      {children}
-      {hint && <p className="mt-1 text-2xs text-slate-500">{hint}</p>}
-    </div>
+        </Box>
+        <IconButton aria-label="Close" onClick={onClose} sx={{ position: 'absolute', right: 12, top: 12, color: 'text.secondary' }}>
+          <X size={20} />
+        </IconButton>
+      </DialogTitle>
+      {children && <DialogContent dividers>{children}</DialogContent>}
+      {footer && <DialogActions sx={{ px: 2.5, py: 2, bgcolor: '#F7F9FC', gap: 1 }}>{footer}</DialogActions>}
+    </Dialog>
   );
 }
 
@@ -474,13 +502,18 @@ export function Field({
 export function ProgressBar({ value, threshold = 75 }: { value: number; threshold?: number }) {
   const v = Math.max(0, Math.min(100, value));
   return (
-    <div className="relative h-2 rounded-full bg-slate-100" role="meter" aria-valuenow={v} aria-valuemin={0} aria-valuemax={100}>
-      <div
-        className={cx('h-full rounded-full', v < threshold ? 'bg-rose-600' : 'bg-emerald-600')}
-        style={{ width: `${v}%` }}
+    <Box sx={{ position: "relative" }}>
+      <LinearProgress
+        variant="determinate"
+        value={v}
+        color={v < threshold ? 'error' : 'success'}
+        aria-label={`${v}% attendance, ${threshold}% required`}
       />
-      <span className="absolute -top-1 h-4 w-0.5 bg-slate-400" style={{ left: `${threshold}%` }} aria-hidden="true" />
-    </div>
+      <Box
+        aria-hidden="true"
+        sx={{ position: 'absolute', top: -4, height: 16, width: 2, bgcolor: TOKENS.steel, left: `${threshold}%` }}
+      />
+    </Box>
   );
 }
 
@@ -498,22 +531,114 @@ export function SegmentedControl<T extends string>({
   label: string;
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex p-1 rounded-lg bg-slate-100 border border-slate-200">
+    <ToggleButtonGroup
+      exclusive
+      size="small"
+      value={value}
+      onChange={(_, v: T | null) => v && onChange(v)}
+      aria-label={label}
+      sx={{ bgcolor: TOKENS.fill, p: 0.5, borderRadius: 2, '& .MuiToggleButtonGroup-grouped': { border: 0, borderRadius: '6px !important' } }}
+    >
       {options.map((o) => (
-        <button
+        <ToggleButton
           key={o.value}
-          role="radio"
-          aria-checked={value === o.value}
-          onClick={() => onChange(o.value)}
-          className={cx(
-            'h-8 px-3 rounded-md text-xs font-semibold whitespace-nowrap transition-colors',
-            value === o.value ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'
-          )}
+          value={o.value}
+          sx={{
+            px: 1.5,
+            height: 32,
+            whiteSpace: 'nowrap',
+            color: 'text.secondary',
+            '&.Mui-selected, &.Mui-selected:hover': { bgcolor: '#fff', color: 'text.primary', boxShadow: '0 1px 2px rgba(42,53,71,.08)' },
+          }}
         >
           {o.label}
-          {o.count !== undefined && <span className="ml-1.5 text-slate-400">{o.count}</span>}
-        </button>
+          {o.count !== undefined && (
+            <Box component="span" sx={{ ml: 0.75, color: TOKENS.steel }}>
+              {o.count}
+            </Box>
+          )}
+        </ToggleButton>
       ))}
-    </div>
+    </ToggleButtonGroup>
+  );
+}
+
+/* ------------------------------------------------------------------ Fields */
+
+/** Dropdown built on TextField. Without `label` it's an inline filter and needs `ariaLabel`. */
+export function SelectField<T extends string>({
+  label,
+  ariaLabel,
+  value,
+  onChange,
+  options,
+  helperText,
+  minWidth,
+  id,
+  fullWidth,
+}: {
+  label?: string;
+  ariaLabel?: string;
+  value: T;
+  onChange: (v: T) => void;
+  options: { value: T; label: string }[];
+  helperText?: React.ReactNode;
+  minWidth?: number | string;
+  id?: string;
+  fullWidth?: boolean;
+}) {
+  return (
+    <TextField
+      select
+      id={id}
+      label={label}
+      value={value}
+      onChange={(e) => onChange(e.target.value as T)}
+      helperText={helperText}
+      fullWidth={fullWidth ?? !!label}
+      sx={{ minWidth, maxWidth: '100%' }}
+      slotProps={{
+        // The visible MUI select is a div[role=combobox]; name it when there's no visible label.
+        select: label ? undefined : { SelectDisplayProps: { 'aria-label': ariaLabel } as React.HTMLAttributes<HTMLDivElement> },
+      }}
+    >
+      {options.map((o) => (
+        <MenuItem key={o.value} value={o.value}>
+          {o.label}
+        </MenuItem>
+      ))}
+    </TextField>
+  );
+}
+
+/** Text field with a leading search icon. */
+export function SearchField({
+  value,
+  onChange,
+  placeholder,
+  ariaLabel,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  ariaLabel: string;
+}) {
+  return (
+    <TextField
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      sx={{ flex: 1, minWidth: 192 }}
+      slotProps={{
+        htmlInput: { 'aria-label': ariaLabel },
+        input: {
+          startAdornment: (
+            <InputAdornment position="start">
+              <Search size={16} color={TOKENS.steel} />
+            </InputAdornment>
+          ),
+        },
+      }}
+    />
   );
 }
