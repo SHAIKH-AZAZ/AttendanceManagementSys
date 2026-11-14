@@ -174,8 +174,8 @@ export const UserManagementTab: React.FC = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <Users className="w-5 h-5 text-indigo-600" />
-            User & Access Management (RBAC)
+            <Users className="w-5 h-5 text-brand-600" />
+            Users and access
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
             Manage university accounts, credentials, role assignments, and campus tenant isolation.
@@ -184,10 +184,10 @@ export const UserManagementTab: React.FC = () => {
 
         <button
           onClick={() => setIsAddUserModalOpen(true)}
-          className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition-all active:scale-95"
+          className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition-all active:scale-95"
         >
           <UserPlus className="w-4 h-4" />
-          + Create New User
+          Create user
         </button>
       </div>
 
@@ -221,7 +221,7 @@ export const UserManagementTab: React.FC = () => {
             placeholder="Search by name, email, roll number, or employee ID..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
+            className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium"
           />
         </div>
 
@@ -236,23 +236,23 @@ export const UserManagementTab: React.FC = () => {
             <option value="ALL">All Roles ({users.length})</option>
             <option value="FACULTY">Faculty</option>
             <option value="STUDENT">Student</option>
-            <option value="HOD">Head of Department (HOD)</option>
-            <option value="ADMIN_STAFF">Admin Staff</option>
+            <option value="HOD">Head of department (HOD)</option>
+            <option value="ADMIN_STAFF">Admin staff</option>
           </select>
         </div>
       </div>
 
       {/* User Table */}
       <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="table-scroll">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
+            <thead className="bg-slate-50 text-slate-600 text-2xs font-bold border-b border-slate-200">
               <tr>
                 <th className="py-3 px-4">User</th>
                 <th className="py-3 px-4">Role</th>
-                <th className="py-3 px-4">Campus & Dept</th>
-                <th className="py-3 px-4">Identifier / Code</th>
-                <th className="py-3 px-4">Account Status</th>
+                <th className="py-3 px-4">Campus and department</th>
+                <th className="py-3 px-4">Identifier / code</th>
+                <th className="py-3 px-4">Account status</th>
                 <th className="py-3 px-4 text-center">Actions</th>
               </tr>
             </thead>
@@ -267,26 +267,26 @@ export const UserManagementTab: React.FC = () => {
                   <tr key={u.id} className="hover:bg-slate-50/80">
                     <td className="py-3 px-4">
                       <div className="font-bold text-slate-900">{u.fullName}</div>
-                      <div className="text-[11px] text-slate-500">{u.email}</div>
+                      <div className="text-2xs text-slate-500">{u.email}</div>
                     </td>
                     <td className="py-3 px-4">
                       <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                        className={`inline-flex items-center whitespace-nowrap px-2 py-0.5 rounded-md text-2xs font-bold border ${
                           u.role === 'FACULTY'
-                            ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                            ? 'bg-brand-50 text-brand-700 border-brand-200'
                             : u.role === 'STUDENT'
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                             : u.role === 'HOD'
                             ? 'bg-amber-50 text-amber-800 border-amber-200'
-                            : 'bg-purple-50 text-purple-700 border-purple-200'
+                            : 'bg-brand-50 text-brand-700 border-brand-200'
                         }`}
                       >
-                        {u.role}
+                        {u.role === 'ADMIN_STAFF' ? 'Admin staff' : u.role === 'HOD' ? 'HOD' : u.role[0] + u.role.slice(1).toLowerCase()}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-slate-700">
                       <div>North Campus</div>
-                      <div className="text-[11px] text-slate-500">
+                      <div className="text-2xs text-slate-500">
                         {u.departmentId ? 'Computer Science & Engg' : 'All Departments'}
                       </div>
                     </td>
@@ -295,11 +295,11 @@ export const UserManagementTab: React.FC = () => {
                     </td>
                     <td className="py-3 px-4">
                       {u.isActive ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700">
+                        <span className="inline-flex items-center gap-1 text-2xs font-bold text-emerald-700">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Active
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700">
+                        <span className="inline-flex items-center gap-1 text-2xs font-bold text-rose-700">
                           <XCircle className="w-3.5 h-3.5 text-rose-600" /> Deactivated
                         </span>
                       )}
@@ -308,7 +308,7 @@ export const UserManagementTab: React.FC = () => {
                       <div className="flex items-center justify-center gap-2">
                         <button
                           onClick={() => handleToggleUserStatus(u)}
-                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] border border-slate-200 shadow-2xs"
+                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-2xs border border-slate-200 shadow-2xs"
                         >
                           {u.isActive ? 'Deactivate' : 'Activate'}
                         </button>
@@ -335,8 +335,8 @@ export const UserManagementTab: React.FC = () => {
           <div className="bg-white border border-slate-200 max-w-lg w-full rounded-2xl p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-indigo-600" />
-                Register New User Account
+                <UserPlus className="w-5 h-5 text-brand-600" />
+                Register new user account
               </h3>
               <button
                 onClick={() => setIsAddUserModalOpen(false)}
@@ -349,16 +349,16 @@ export const UserManagementTab: React.FC = () => {
             <form onSubmit={handleCreateUser} className="space-y-3.5 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1">Assigned Role</label>
+                  <label className="block text-slate-700 font-bold mb-1">Assigned role</label>
                   <select
                     value={role}
                     onChange={(e) => setRole(e.target.value as UserRole)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium focus:ring-2 focus:ring-brand-500"
                   >
                     <option value="FACULTY">Faculty (Instructor)</option>
                     <option value="STUDENT">Student</option>
-                    <option value="HOD">Head of Department (HOD)</option>
-                    <option value="ADMIN_STAFF">Admin Staff / Registrar</option>
+                    <option value="HOD">Head of department (HOD)</option>
+                    <option value="ADMIN_STAFF">Admin staff / registrar</option>
                   </select>
                 </div>
                 <div>
@@ -371,38 +371,38 @@ export const UserManagementTab: React.FC = () => {
                     placeholder={role === 'STUDENT' ? 'e.g. CS-2026-050' : 'e.g. FAC-CSE-115'}
                     value={codeIdentifier}
                     onChange={(e) => setCodeIdentifier(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium focus:ring-2 focus:ring-brand-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Full Legal Name</label>
+                <label className="block text-slate-700 font-bold mb-1">Full legal name</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Dr. Ramesh Gupta"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium focus:ring-2 focus:ring-brand-500"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Institutional Email</label>
+                <label className="block text-slate-700 font-bold mb-1">Institutional email</label>
                 <input
                   type="email"
                   required
                   placeholder="ramesh.gupta@univ.edu"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium focus:ring-2 focus:ring-brand-500"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1">Campus Assignment</label>
+                  <label className="block text-slate-700 font-bold mb-1">Campus assignment</label>
                   <select
                     value={campusId}
                     onChange={(e) => setCampusId(e.target.value)}
@@ -429,7 +429,7 @@ export const UserManagementTab: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Initial Password</label>
+                <label className="block text-slate-700 font-bold mb-1">Initial password</label>
                 <input
                   type="text"
                   value={password}
@@ -449,7 +449,7 @@ export const UserManagementTab: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold flex items-center gap-1.5 shadow-sm"
+                  className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold flex items-center gap-1.5 shadow-sm"
                 >
                   <UserPlus className="w-3.5 h-3.5" /> Commit User
                 </button>

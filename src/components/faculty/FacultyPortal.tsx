@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useAuth } from '@/context/AuthContext';
 import {
   LectureSession,
   AttendanceRecord,
@@ -36,6 +37,7 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
   activeTab,
   onOpenUniversityReport,
 }) => {
+  const { user } = useAuth();
   const [sessions, setSessions] = useState<LectureSession[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string>('session-ds-today');
   const [currentSession, setCurrentSession] = useState<LectureSession | null>(null);
@@ -199,7 +201,6 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          facultyId: 'user-faculty-1',
           records,
         }),
       });
@@ -243,14 +244,14 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold mb-1">
-            <span>Course & Section</span>
-            <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold border border-indigo-100">
+            <span>Course & section</span>
+            <span className="text-2xs px-2 py-0.5 rounded bg-brand-50 text-brand-700 font-bold border border-brand-100">
               Trimester 2
             </span>
           </div>
           <div className="text-lg font-bold text-slate-900">Data Structures (CS-301)</div>
           <div className="text-xs text-slate-500 mt-1 flex items-center gap-1.5 font-medium">
-            <Users className="w-3.5 h-3.5 text-indigo-600" />
+            <Users className="w-3.5 h-3.5 text-brand-600" />
             Section A • 15 Enrolled Students
           </div>
         </div>
@@ -259,7 +260,7 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold mb-1">
             <span>Today&apos;s Lecture</span>
             <span
-              className={`text-[10px] px-2 py-0.5 rounded font-bold border ${
+              className={`text-2xs px-2 py-0.5 rounded font-bold border ${
                 currentSession?.isLocked
                   ? 'bg-slate-100 text-slate-700 border-slate-200'
                   : 'bg-amber-50 text-amber-800 border-amber-200'
@@ -277,7 +278,7 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
 
         <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold mb-1">
-            <span>Total Completed Sessions</span>
+            <span>Total completed sessions</span>
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="text-2xl font-bold text-slate-900">24 Sessions</div>
@@ -288,7 +289,7 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
 
         <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 text-xs font-semibold mb-1">
-            <span>Compliance Alert</span>
+            <span>Compliance alert</span>
             <AlertTriangle className="w-4 h-4 text-rose-600" />
           </div>
           <div className="text-2xl font-bold text-rose-600">{defaultersCount} Students</div>
@@ -306,7 +307,7 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
               ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
               : notification.type === 'error'
               ? 'bg-rose-50 border-rose-200 text-rose-800'
-              : 'bg-indigo-50 border-indigo-200 text-indigo-800'
+              : 'bg-brand-50 border-brand-200 text-brand-800'
           }`}
         >
           <div className="flex items-center gap-2 font-medium">
@@ -330,21 +331,21 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
             <div>
               <div className="flex items-center gap-2.5">
                 <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <FileCheck className="w-5 h-5 text-indigo-600" />
+                  <FileCheck className="w-5 h-5 text-brand-600" />
                   {currentSession?.sessionTitle || 'Class Attendance Marking'}
                 </h2>
                 {currentSession?.isLocked ? (
-                  <span className="inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full font-bold bg-slate-100 text-slate-700 border border-slate-300">
+                  <span className="inline-flex items-center gap-1 text-2xs px-2.5 py-0.5 rounded-full font-bold bg-slate-100 text-slate-700 border border-slate-300">
                     <Lock className="w-3 h-3 text-slate-600" /> Locked & Immutable
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 animate-pulse">
+                  <span className="inline-flex items-center gap-1 text-2xs px-2.5 py-0.5 rounded-full font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 animate-pulse">
                     ● Marking Active (Draft)
                   </span>
                 )}
               </div>
               <p className="text-xs text-slate-500 mt-1 font-medium">
-                Date: {currentSession?.lectureDate} • Section: Computer-A • Faculty: Prof. Rajesh Sharma
+                Date: {currentSession?.lectureDate} • Section: Computer-A • Faculty: {user?.fullName}
               </p>
             </div>
 
@@ -359,11 +360,11 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
                   const s = sessions.find((item) => item.id === e.target.value);
                   if (s) handleSelectSession(s);
                 }}
-                className="bg-white border border-slate-300 text-xs text-slate-800 rounded-xl px-3 py-2 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full sm:w-auto shadow-2xs"
+                className="bg-white border border-slate-300 text-xs text-slate-800 rounded-xl px-3 py-2 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 w-full sm:w-auto shadow-2xs"
               >
                 {sessions.map((s) => (
                   <option key={s.id} value={s.id}>
-                    #{s.sessionNumber} - {s.lectureDate} {s.isLocked ? '(🔒 Locked)' : '(Active Draft)'}
+                    #{s.sessionNumber} - {s.lectureDate} {s.isLocked ? '(Locked)' : '(Draft)'}
                   </option>
                 ))}
               </select>
@@ -380,7 +381,7 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
                   className="px-3.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs active:scale-95"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  Mark All Present
+                  Mark all present
                 </button>
                 <button
                   id="btn-mark-all-absent"
@@ -388,7 +389,7 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
                   className="px-3.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs active:scale-95"
                 >
                   <XCircle className="w-3.5 h-3.5 text-rose-600" />
-                  Mark All Absent
+                  Mark all absent
                 </button>
                 <button
                   id="btn-copy-prev-session"
@@ -397,7 +398,7 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
                   className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs active:scale-95"
                 >
                   <Copy className="w-3.5 h-3.5 text-slate-600" />
-                  Copy Prev Session
+                  Copy previous session
                 </button>
               </div>
 
@@ -408,16 +409,16 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
                   className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs"
                 >
                   <Save className="w-3.5 h-3.5 text-slate-600" />
-                  Save Draft
+                  Save draft
                 </button>
                 <button
                   id="btn-submit-lock-session"
                   onClick={() => setIsLockModalOpen(true)}
                   disabled={isLoading}
-                  className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm text-xs font-bold flex items-center gap-2 transition-all active:scale-95"
+                  className="px-4 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white shadow-sm text-xs font-bold flex items-center gap-2 transition-all active:scale-95"
                 >
                   <Lock className="w-3.5 h-3.5 text-white" />
-                  Submit & Lock Attendance
+                  Submit & lock attendance
                 </button>
               </div>
             </div>
@@ -426,31 +427,31 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
           {/* Real-time Dynamic Counter Bar */}
           <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 grid grid-cols-3 sm:grid-cols-7 gap-2 text-center text-xs">
             <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
-              <div className="text-[10px] text-slate-500 font-semibold">Total</div>
+              <div className="text-2xs text-slate-500 font-semibold">Total</div>
               <div className="text-base font-bold text-slate-900">{summary.total}</div>
             </div>
             <div className="bg-emerald-50/60 p-2.5 rounded-xl border border-emerald-200 shadow-2xs">
-              <div className="text-[10px] text-emerald-800 font-semibold">Present (P)</div>
+              <div className="text-2xs text-emerald-800 font-semibold">Present (P)</div>
               <div className="text-base font-bold text-emerald-700">{summary.present}</div>
             </div>
             <div className="bg-rose-50/60 p-2.5 rounded-xl border border-rose-200 shadow-2xs">
-              <div className="text-[10px] text-rose-800 font-semibold">Absent (A)</div>
+              <div className="text-2xs text-rose-800 font-semibold">Absent (A)</div>
               <div className="text-base font-bold text-rose-700">{summary.absent}</div>
             </div>
             <div className="bg-amber-50/60 p-2.5 rounded-xl border border-amber-200 shadow-2xs">
-              <div className="text-[10px] text-amber-800 font-semibold">Late (L)</div>
+              <div className="text-2xs text-amber-800 font-semibold">Late (L)</div>
               <div className="text-base font-bold text-amber-700">{summary.late}</div>
             </div>
             <div className="bg-blue-50/60 p-2.5 rounded-xl border border-blue-200 shadow-2xs">
-              <div className="text-[10px] text-blue-800 font-semibold">Excused (E)</div>
+              <div className="text-2xs text-blue-800 font-semibold">Excused (E)</div>
               <div className="text-base font-bold text-blue-700">{summary.excused}</div>
             </div>
-            <div className="bg-purple-50/60 p-2.5 rounded-xl border border-purple-200 shadow-2xs">
-              <div className="text-[10px] text-purple-800 font-semibold">Medical (M)</div>
-              <div className="text-base font-bold text-purple-700">{summary.medical}</div>
+            <div className="bg-brand-50/60 p-2.5 rounded-xl border border-brand-200 shadow-2xs">
+              <div className="text-2xs text-brand-800 font-semibold">Medical (M)</div>
+              <div className="text-base font-bold text-brand-700">{summary.medical}</div>
             </div>
             <div className="bg-sky-50/60 p-2.5 rounded-xl border border-sky-200 shadow-2xs">
-              <div className="text-[10px] text-sky-800 font-semibold">On Duty (O)</div>
+              <div className="text-2xs text-sky-800 font-semibold">On duty (O)</div>
               <div className="text-base font-bold text-sky-700">{summary.onDuty}</div>
             </div>
           </div>
@@ -464,7 +465,7 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
                 placeholder="Search name or roll number..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
 
@@ -476,27 +477,27 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="bg-slate-50 border border-slate-300 text-xs text-slate-800 rounded-xl px-3 py-1.5 font-medium focus:outline-none"
               >
-                <option value="ALL">All Statuses</option>
+                <option value="ALL">All statuses</option>
                 <option value="PRESENT">Present</option>
                 <option value="ABSENT">Absent</option>
                 <option value="LATE">Late</option>
                 <option value="EXCUSED">Excused</option>
-                <option value="MEDICAL_LEAVE">Medical Leave</option>
-                <option value="ON_DUTY">On Duty</option>
+                <option value="MEDICAL_LEAVE">Medical leave</option>
+                <option value="ON_DUTY">On duty</option>
               </select>
             </div>
           </div>
 
           {/* Interactive Student Roster Table */}
-          <div className="overflow-x-auto">
+          <div className="table-scroll">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 uppercase font-bold text-[10px] tracking-wider border-b border-slate-200">
+              <thead className="bg-slate-50 text-slate-600 font-bold text-2xs border-b border-slate-200">
                 <tr>
                   <th className="py-3 px-4 w-12">#</th>
-                  <th className="py-3 px-4">Roll Number</th>
+                  <th className="py-3 px-4">Roll number</th>
                   <th className="py-3 px-4">Student Name</th>
-                  <th className="py-3 px-4">Current Status</th>
-                  <th className="py-3 px-4 text-center">Quick Toggles</th>
+                  <th className="py-3 px-4">Current status</th>
+                  <th className="py-3 px-4 text-center">Quick toggles</th>
                   <th className="py-3 px-4">Remarks</th>
                 </tr>
               </thead>
@@ -523,7 +524,7 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
                       </td>
                       <td className="py-3 px-4">
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold border ${
+                          className={`inline-flex items-center px-2 py-0.5 rounded-md text-2xs font-bold border ${
                             stu.status === 'PRESENT'
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                               : stu.status === 'ABSENT'
@@ -533,7 +534,7 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
                               : stu.status === 'EXCUSED'
                               ? 'bg-blue-50 text-blue-700 border-blue-200'
                               : stu.status === 'MEDICAL_LEAVE'
-                              ? 'bg-purple-50 text-purple-700 border-purple-200'
+                              ? 'bg-brand-50 text-brand-700 border-brand-200'
                               : 'bg-sky-50 text-sky-700 border-sky-200'
                           }`}
                         >
@@ -598,7 +599,7 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
                             title="Medical Leave"
                             className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
                               stu.status === 'MEDICAL_LEAVE'
-                                ? 'bg-purple-600 text-white shadow-sm ring-1 ring-purple-700'
+                                ? 'bg-brand-600 text-white shadow-sm ring-1 ring-brand-700'
                                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                             } ${isLocked ? 'opacity-40 cursor-not-allowed' : ''}`}
                           >
@@ -627,7 +628,7 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
                           value={stu.remarks || ''}
                           disabled={isLocked}
                           onChange={(e) => handleRemarksChange(stu.studentId, e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-[11px] text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 disabled:bg-transparent"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-2xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:opacity-50 disabled:bg-transparent"
                         />
                       </td>
                     </tr>
@@ -644,27 +645,27 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
         <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-sm font-bold text-slate-900">Completed Attendance Sessions Log</h3>
+              <h3 className="text-sm font-bold text-slate-900">Completed attendance sessions log</h3>
               <p className="text-xs text-slate-500">All submitted records locked and recorded in database</p>
             </div>
             {onOpenUniversityReport && (
               <button
                 onClick={() => onOpenUniversityReport('course-ds', 'sec-ds-a')}
-                className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm"
+                className="px-3.5 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm"
               >
                 <Award className="w-3.5 h-3.5" /> Official Board Report
               </button>
             )}
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="table-scroll">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
+              <thead className="bg-slate-50 text-slate-600 text-2xs font-bold border-b border-slate-200">
                 <tr>
                   <th className="py-3 px-4">#</th>
                   <th className="py-3 px-4">Date</th>
-                  <th className="py-3 px-4">Lecture Title</th>
-                  <th className="py-3 px-4">Present / Total</th>
+                  <th className="py-3 px-4">Lecture title</th>
+                  <th className="py-3 px-4">Present / total</th>
                   <th className="py-3 px-4">Attendance %</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4">Action</th>
@@ -689,11 +690,11 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
                         <td className="py-3 px-4 font-bold text-emerald-700">{pct}%</td>
                         <td className="py-3 px-4">
                           {s.isLocked ? (
-                            <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-semibold flex items-center gap-1 w-fit">
+                            <span className="text-2xs px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-semibold flex items-center gap-1 w-fit">
                               <Lock className="w-2.5 h-2.5 text-slate-500" /> Locked
                             </span>
                           ) : (
-                            <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold w-fit">
+                            <span className="text-2xs px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold w-fit">
                               Draft
                             </span>
                           )}
@@ -703,7 +704,7 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
                             onClick={() => {
                               handleSelectSession(s);
                             }}
-                            className="text-indigo-600 hover:text-indigo-800 text-xs font-bold flex items-center gap-1"
+                            className="text-brand-600 hover:text-brand-800 text-xs font-bold flex items-center gap-1"
                           >
                             Open <ExternalLink className="w-3 h-3" />
                           </button>
@@ -735,16 +736,16 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="table-scroll">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
+              <thead className="bg-slate-50 text-slate-600 text-2xs font-bold border-b border-slate-200">
                 <tr>
-                  <th className="py-3 px-4">Roll Number</th>
+                  <th className="py-3 px-4">Roll number</th>
                   <th className="py-3 px-4">Student Name</th>
-                  <th className="py-3 px-4">Attended / Total</th>
+                  <th className="py-3 px-4">Attended / total</th>
                   <th className="py-3 px-4">Percentage</th>
-                  <th className="py-3 px-4">Compliance Status</th>
-                  <th className="py-3 px-4">Recovery Action Required</th>
+                  <th className="py-3 px-4">Compliance status</th>
+                  <th className="py-3 px-4">Recovery action required</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
@@ -769,11 +770,11 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
                     </td>
                     <td className="py-3 px-4">
                       {stu.isDefaulter ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 font-bold">
+                        <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 font-bold">
                           <AlertTriangle className="w-3 h-3 text-rose-600" /> Defaulter (&lt;75%)
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">
+                        <span className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">
                           <Check className="w-3 h-3 text-emerald-600" /> Compliant
                         </span>
                       )}
@@ -838,12 +839,12 @@ export const FacultyPortal: React.FC<FacultyPortalProps> = ({
                 onClick={() => setIsLockModalOpen(false)}
                 className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 transition-all border border-slate-200"
               >
-                Cancel & Review
+                Cancel & review
               </button>
               <button
                 onClick={handleConfirmSubmitAndLock}
                 disabled={isLoading}
-                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-xs font-bold text-white shadow-sm transition-all flex items-center gap-1.5"
+                className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-xs font-bold text-white shadow-sm transition-all flex items-center gap-1.5"
               >
                 <Lock className="w-3.5 h-3.5" />
                 Yes, Lock & Submit

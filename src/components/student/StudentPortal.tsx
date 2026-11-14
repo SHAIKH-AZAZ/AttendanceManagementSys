@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { LeaveApplication } from '@/types';
+import { useAuth } from '@/context/AuthContext';
 import {
   GraduationCap,
   AlertTriangle,
@@ -39,6 +40,7 @@ interface StudentSummaryData {
 }
 
 export const StudentPortal: React.FC<StudentPortalProps> = ({ activeTab }) => {
+  const { user } = useAuth();
   const [data, setData] = useState<StudentSummaryData | null>(null);
   const [leaves, setLeaves] = useState<LeaveApplication[]>([]);
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
@@ -54,7 +56,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ activeTab }) => {
 
   const fetchStudentData = async () => {
     try {
-      const res = await fetch('/api/student/summary?studentId=stu-4');
+      const res = await fetch('/api/student/summary');
       const json = await res.json();
       if (json.summary) setData(json.summary);
       if (json.leaves) setLeaves(json.leaves);
@@ -77,9 +79,6 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ activeTab }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          studentId: 'stu-4',
-          studentName: 'Devendra Joshi',
-          enrollmentNumber: 'CS-2026-004',
           campusId: 'campus-1',
           departmentId: 'dept-cs',
           leaveType,
@@ -112,14 +111,14 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ activeTab }) => {
       <div className="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-xs relative overflow-hidden">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
           <div className="flex items-center space-x-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center shadow-md shadow-emerald-500/20 ring-1 ring-black/5">
-              <GraduationCap className="w-8 h-8 text-white" />
+            <div className="w-16 h-16 rounded-2xl bg-brand-100 flex items-center justify-center ">
+              <GraduationCap className="w-8 h-8 text-brand-600" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold text-slate-900">Devendra Joshi</h1>
+                <h1 className="text-xl font-bold text-slate-900">{user?.fullName}</h1>
                 <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold font-mono">
-                  CS-2026-004
+                  {user?.studentProfile?.enrollmentNumber}
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-1 font-medium">
@@ -131,10 +130,10 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ activeTab }) => {
           {/* Quick Leave Apply Trigger */}
           <button
             onClick={() => setIsApplyModalOpen(true)}
-            className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm flex items-center gap-2 transition-all active:scale-95"
+            className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-sm flex items-center gap-2 transition-all active:scale-95"
           >
             <Calendar className="w-4 h-4" />
-            + Apply for Leave
+            Apply for leave
           </button>
         </div>
       </div>
@@ -169,14 +168,14 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ activeTab }) => {
             <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs relative overflow-hidden flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
-                  <span>Overall Attendance</span>
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                  <span>Overall attendance</span>
+                  <span className="text-2xs font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
                     Min Required: 75%
                   </span>
                 </div>
                 <div className="mt-4 flex items-baseline gap-3">
                   <span
-                    className={`text-4xl font-extrabold ${
+                    className={`text-4xl font-bold ${
                       (data?.overallPercentage || 0) < 75 ? 'text-rose-600' : 'text-emerald-700'
                     }`}
                   >
@@ -200,13 +199,13 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ activeTab }) => {
                   <div
                     className={`h-full rounded-full transition-all duration-500 ${
                       (data?.overallPercentage || 0) < 75
-                        ? 'bg-gradient-to-r from-amber-500 to-rose-500'
-                        : 'bg-gradient-to-r from-emerald-500 to-teal-500'
+                        ? 'bg-rose-600'
+                        : 'bg-brand-600'
                     }`}
                     style={{ width: `${Math.min(100, data?.overallPercentage || 0)}%` }}
                   />
                 </div>
-                <div className="flex justify-between text-[11px] text-slate-400 mt-1.5 font-medium">
+                <div className="flex justify-between text-2xs text-slate-400 mt-1.5 font-medium">
                   <span>0%</span>
                   <span className="text-amber-700 font-bold">75% Threshold</span>
                   <span>100%</span>
@@ -216,12 +215,12 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ activeTab }) => {
 
             {/* Attendance Breakdown Counters */}
             <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs md:col-span-2">
-              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
-                Lecture Breakdown
+              <h3 className="text-xs font-bold text-slate-500 mb-3">
+                Lecture breakdown
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                  <div className="text-xs text-slate-500 font-medium">Total Lectures</div>
+                  <div className="text-xs text-slate-500 font-medium">Total lectures</div>
                   <div className="text-xl font-bold text-slate-900 mt-1">
                     {data?.totalSessions || 0}
                   </div>
@@ -239,7 +238,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ activeTab }) => {
                   </div>
                 </div>
                 <div className="bg-blue-50/70 p-3 rounded-xl border border-blue-200">
-                  <div className="text-xs text-blue-800 font-medium">Excused / Medical</div>
+                  <div className="text-xs text-blue-800 font-medium">Excused / medical</div>
                   <div className="text-xl font-bold text-blue-700 mt-1">
                     {data?.excusedCount || 0}
                   </div>
@@ -261,7 +260,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ activeTab }) => {
 
           {/* Course-Wise Breakdown Cards */}
           <div>
-            <h3 className="text-sm font-bold text-slate-900 mb-3">Enrolled Courses Performance</h3>
+            <h3 className="text-sm font-bold text-slate-900 mb-3">Enrolled courses performance</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {data?.courses.map((c) => {
                 const needed = c.isDefaulter
@@ -277,20 +276,20 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ activeTab }) => {
                   >
                     <div className="flex items-start justify-between">
                       <div>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        <span className="text-2xs font-bold px-2 py-0.5 rounded bg-brand-50 text-brand-700 border border-brand-200">
                           {c.code}
                         </span>
                         <h4 className="text-sm font-bold text-slate-900 mt-1.5">{c.title}</h4>
                       </div>
                       <div className="text-right">
                         <div
-                          className={`text-lg font-extrabold ${
+                          className={`text-lg font-bold ${
                             c.isDefaulter ? 'text-rose-600' : 'text-emerald-700'
                           }`}
                         >
                           {c.percentage}%
                         </div>
-                        <div className="text-[11px] text-slate-500 font-medium">
+                        <div className="text-2xs text-slate-500 font-medium">
                           {c.attended} / {c.total} attended
                         </div>
                       </div>
@@ -309,12 +308,12 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ activeTab }) => {
 
                     <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-semibold">
                       {c.isDefaulter ? (
-                        <span className="text-rose-700 flex items-center gap-1 text-[11px]">
+                        <span className="text-rose-700 flex items-center gap-1 text-2xs">
                           <AlertTriangle className="w-3.5 h-3.5" /> Requires {needed} consecutive
                           presences
                         </span>
                       ) : (
-                        <span className="text-emerald-700 flex items-center gap-1 text-[11px]">
+                        <span className="text-emerald-700 flex items-center gap-1 text-2xs">
                           <Check className="w-3.5 h-3.5" /> Good Standing (&ge; 75%)
                         </span>
                       )}
@@ -332,24 +331,24 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ activeTab }) => {
         <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold text-slate-900">Leave Applications & Approval Status</h3>
+              <h3 className="text-sm font-bold text-slate-900">Leave applications & approval status</h3>
               <p className="text-xs text-slate-500">
-                Approved leaves are automatically converted to Excused attendance
+                Approved leaves are automatically marked as excused attendance
               </p>
             </div>
             <button
               onClick={() => setIsApplyModalOpen(true)}
-              className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm flex items-center gap-1.5"
+              className="px-3.5 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-sm flex items-center gap-1.5"
             >
               + New Leave Application
             </button>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="table-scroll">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
+              <thead className="bg-slate-50 text-slate-600 text-2xs font-bold border-b border-slate-200">
                 <tr>
-                  <th className="py-3 px-4">Leave Type</th>
+                  <th className="py-3 px-4">Leave type</th>
                   <th className="py-3 px-4">Dates</th>
                   <th className="py-3 px-4">Reason</th>
                   <th className="py-3 px-4">Document</th>
@@ -369,7 +368,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ activeTab }) => {
                     <td className="py-3 px-4 text-slate-600 max-w-xs truncate">{l.reason}</td>
                     <td className="py-3 px-4">
                       {l.documentUrl ? (
-                        <span className="text-indigo-600 font-semibold text-xs flex items-center gap-1">
+                        <span className="text-brand-600 font-semibold text-xs flex items-center gap-1">
                           <FileText className="w-3.5 h-3.5" /> Attached
                         </span>
                       ) : (
@@ -378,7 +377,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ activeTab }) => {
                     </td>
                     <td className="py-3 px-4">
                       <span
-                        className={`text-[11px] font-bold px-2 py-0.5 rounded-md border ${
+                        className={`text-2xs font-bold px-2 py-0.5 rounded-md border ${
                           l.status === 'APPROVED'
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                             : l.status === 'REJECTED'
@@ -389,7 +388,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ activeTab }) => {
                         {l.status}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-slate-500 text-[11px]">
+                    <td className="py-3 px-4 text-slate-500 text-2xs">
                       {l.reviewComments || 'Pending review by HOD'}
                     </td>
                   </tr>
@@ -406,8 +405,8 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ activeTab }) => {
           <div className="bg-white border border-slate-200 max-w-lg w-full rounded-2xl p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-indigo-600" />
-                Apply for Academic Leave
+                <Calendar className="w-5 h-5 text-brand-600" />
+                Apply for academic leave
               </h3>
               <button
                 onClick={() => setIsApplyModalOpen(false)}
@@ -419,60 +418,60 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ activeTab }) => {
 
             <form onSubmit={handleApplyLeave} className="space-y-4 text-xs">
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Leave Category</label>
+                <label className="block text-slate-700 font-bold mb-1">Leave category</label>
                 <select
                   value={leaveType}
                   onChange={(e) => setLeaveType(e.target.value as any)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500"
                 >
                   <option value="MEDICAL">Medical Leave (Doctor Certificate Required)</option>
                   <option value="ON_DUTY">On Duty (Event / Competition Representation)</option>
                   <option value="CASUAL">Casual Leave (Personal Emergency)</option>
-                  <option value="BEREAVEMENT">Bereavement Leave</option>
+                  <option value="BEREAVEMENT">Bereavement leave</option>
                 </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1">Start Date</label>
+                  <label className="block text-slate-700 font-bold mb-1">Start date</label>
                   <input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-700 font-bold mb-1">End Date</label>
+                  <label className="block text-slate-700 font-bold mb-1">End date</label>
                   <input
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500"
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Detailed Reason</label>
+                <label className="block text-slate-700 font-bold mb-1">Detailed reason</label>
                 <textarea
                   rows={3}
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   placeholder="State the reason for absence..."
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
                   required
                 />
               </div>
 
               <div>
                 <label className="block text-slate-700 font-bold mb-1">
-                  Upload Supporting Proof (PDF / Image)
+                  Upload supporting proof (PDF / image)
                 </label>
                 <div className="border border-dashed border-slate-300 rounded-xl p-4 text-center bg-slate-50 hover:bg-slate-100 transition-colors">
-                  <Upload className="w-5 h-5 text-indigo-600 mx-auto mb-1" />
+                  <Upload className="w-5 h-5 text-brand-600 mx-auto mb-1" />
                   <span className="text-slate-600 font-medium">
                     {fileName ? (
                       <span className="text-emerald-700 font-bold">{fileName}</span>
@@ -490,9 +489,9 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ activeTab }) => {
                   />
                   <label
                     htmlFor="leave-file-input"
-                    className="block mt-2 text-[11px] text-indigo-600 hover:text-indigo-800 cursor-pointer font-bold"
+                    className="block mt-2 text-2xs text-brand-600 hover:text-brand-800 cursor-pointer font-bold"
                   >
-                    Browse Local File
+                    Browse local file
                   </label>
                 </div>
               </div>
