@@ -149,41 +149,14 @@ mark.bad {
   }
 }
 
-/* Faint blueprint backdrop (login) */
-.blueprint {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  color: var(--steel);
-  opacity: 0.3;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.2;
-}
-.blueprint text {
-  fill: currentColor;
-  stroke: none;
-  font: 600 22px var(--font-jakarta), sans-serif;
-}
-.blueprint .sm {
-  font-size: 15px;
-  font-weight: 500;
-}
-.blueprint .cl {
-  stroke-dasharray: 26 6 4 6;
-  stroke-width: 0.9;
-}
-.blueprint .col {
-  fill: currentColor;
-}
-.blueprint .dim {
-  color: var(--dim);
-  stroke: var(--dim);
-}
-.blueprint .dim text {
-  fill: var(--dim);
+/* Keep autofilled inputs white instead of Chrome's blue */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #fff inset;
+  -webkit-text-fill-color: var(--ink);
+  caret-color: var(--ink);
+  transition: background-color 9999s;
 }
 
 @keyframes fade-in {

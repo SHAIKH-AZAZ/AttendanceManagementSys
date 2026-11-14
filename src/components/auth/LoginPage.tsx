@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import {
   AlertCircle,
@@ -28,76 +29,6 @@ const ROLE_PILLS = [
   { icon: ShieldCheck, label: 'HODs', text: 'approve leave' },
   { icon: UserCog, label: 'Admin', text: 'users and reports' },
 ];
-
-/** Faint campus-plan blueprint: axis grid, column marks, one dimension chain, title block. */
-function Blueprint() {
-  const xs = [120, 470, 820, 1170, 1520];
-  const ys = [190, 540, 890];
-  return (
-    <svg
-      className="blueprint [mask-image:linear-gradient(100deg,rgba(0,0,0,.12)_0_40%,#000_85%)]"
-      viewBox="0 0 1600 1010"
-      preserveAspectRatio="xMaxYMax slice"
-      aria-hidden="true"
-      focusable="false"
-    >
-      {xs.map((x, i) => (
-        <g key={`x${x}`}>
-          <line className="cl" x1={x} y1={60} x2={x} y2={990} />
-          <circle cx={x} cy={40} r={20} />
-          <text x={x} y={47} textAnchor="middle">
-            {'ABCDE'[i]}
-          </text>
-        </g>
-      ))}
-      {ys.map((y, j) => (
-        <g key={`y${y}`}>
-          <line className="cl" x1={40} y1={y} x2={1590} y2={y} />
-          <circle cx={20} cy={y} r={20} />
-          <text x={20} y={y + 7} textAnchor="middle">
-            {j + 1}
-          </text>
-        </g>
-      ))}
-      {ys.flatMap((y) =>
-        xs.map((x) => <rect key={`c${x}-${y}`} className="col" x={x - 15} y={y - 15} width={30} height={30} />)
-      )}
-      {/* Dimension chain between axes */}
-      <g className="dim">
-        {xs.slice(0, -1).map((x, i) => (
-          <g key={`d${x}`}>
-            <line x1={x} y1={110} x2={xs[i + 1]} y2={110} />
-            <line x1={x} y1={98} x2={x} y2={122} />
-            <line x1={xs[i + 1]} y1={98} x2={xs[i + 1]} y2={122} />
-            <text className="sm" x={(x + xs[i + 1]) / 2} y={100} textAnchor="middle">
-              7,000
-            </text>
-          </g>
-        ))}
-      </g>
-      {/* One typical room with a call-out */}
-      <rect x={470} y={540} width={350} height={350} strokeDasharray="10 8" />
-      <polyline points="645,715 645,640 700,640" />
-      <circle cx={645} cy={715} r={4} className="col" />
-      <text className="sm" x={706} y={645}>
-        Room A-204
-      </text>
-      {/* Title block */}
-      <g transform="translate(1210 900)">
-        <rect width={360} height={90} />
-        <line x1={0} y1={45} x2={360} y2={45} />
-        <line x1={230} y1={45} x2={230} y2={90} />
-        <text x={16} y={31}>AttendEASE365</text>
-        <text className="sm" x={16} y={74}>
-          Campus attendance plan
-        </text>
-        <text className="sm" x={246} y={74}>
-          Sheet A-01
-        </text>
-      </g>
-    </svg>
-  );
-}
 
 export const LoginPage: React.FC = () => {
   const { login, isLoading } = useAuth();
@@ -128,9 +59,18 @@ export const LoginPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white text-slate-800 grid grid-rows-[auto_1fr] lg:grid-rows-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(420px,1fr)]">
-      {/* Left: product story on a faint blueprint */}
+      {/* Left: product story over the campus photo */}
       <section className="relative overflow-hidden border-b lg:border-b-0 lg:border-r border-slate-200">
-        <Blueprint />
+        {/* Campus photo under a white wash so the headline stays readable */}
+        <Image
+          src="/images/gec-modasa.jpg"
+          alt=""
+          fill
+          priority
+          sizes="(min-width: 1024px) 55vw, 100vw"
+          className="object-cover object-[70%_center]"
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,#fff_0%,rgba(255,255,255,.97)_38%,rgba(255,255,255,.75)_58%,rgba(255,255,255,.1)_100%)] max-lg:bg-[linear-gradient(180deg,rgba(255,255,255,.75)_0%,rgba(255,255,255,.95)_45%,#fff_100%)]" />
         <div className="relative flex flex-col h-full px-4 sm:px-10 lg:px-14 py-8 lg:py-12">
           <div className="flex items-center gap-2.5 font-bold text-slate-800">
             <span className="w-9 h-9 rounded-lg bg-brand-100 text-brand-600 flex items-center justify-center">
@@ -162,6 +102,28 @@ export const LoginPage: React.FC = () => {
               ))}
             </ul>
           </div>
+
+          <p className="mt-10 lg:mt-0 text-2xs text-slate-500">
+            Government Engineering College, Modasa. Photo:{' '}
+            <a
+              href="https://commons.wikimedia.org/wiki/File:GEC_MODASA.jpg"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-slate-800"
+            >
+              Saifullah.vguj
+            </a>
+            ,{' '}
+            <a
+              href="https://creativecommons.org/licenses/by-sa/4.0/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-slate-800"
+            >
+              CC BY-SA 4.0
+            </a>
+            , resized.
+          </p>
         </div>
       </section>
 
