@@ -34,7 +34,6 @@ import {
   CheckCircle2,
   FileSpreadsheet,
   History,
-  Search,
   Upload,
   UserPlus,
   Users,

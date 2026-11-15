@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import TextField from '@mui/material/TextField';
 import type { Assignment, StoredFile, Submission } from '@/types';
 import { useUpload } from '@/hooks/useUpload';
+import { isPast } from '@/lib/rules';
 import { Badge, Button, Card, EmptyState, Notice, type NoticeTone, PageHeader, SegmentedControl } from '@/components/ui';
 import { AttachButton, FileList } from '@/components/ui/FileList';
 import { ArrowLeft, BookOpenCheck, Send } from 'lucide-react';
@@ -17,7 +18,7 @@ const when = (iso: string) =>
 function status(r: { dueAt: string; submission: Submission | null }) {
   if (r.submission?.gradedAt) return { label: 'Graded', tone: 'good' as const };
   if (r.submission) return { label: r.submission.isLate ? 'Submitted late' : 'Submitted', tone: r.submission.isLate ? ('warn' as const) : ('info' as const) };
-  if (Date.now() > Date.parse(r.dueAt)) return { label: 'Overdue', tone: 'bad' as const };
+  if (isPast(r.dueAt)) return { label: 'Overdue', tone: 'bad' as const };
   return { label: 'To do', tone: 'neutral' as const };
 }
 
@@ -103,7 +104,7 @@ export function StudentAssignmentsTab({ notify }: { notify: (n: { tone: NoticeTo
               <FileList files={upload.files} onRemove={upload.remove} />
               {upload.error && <p className="text-sm text-rose-600">{upload.error}</p>}
               {error && <p className="text-sm text-rose-600">{error}</p>}
-              {Date.now() > Date.parse(a.dueAt) && <p className="text-sm text-amber-700">The deadline has passed; this will be marked late.</p>}
+              {isPast(a.dueAt) && <p className="text-sm text-amber-700">The deadline has passed; this will be marked late.</p>}
               <div>
                 <Button variant="primary" icon={Send} loading={busy} disabled={upload.uploading || (!text.trim() && !upload.files.length)} onClick={submit}>
                   {s ? 'Resubmit' : 'Submit'}

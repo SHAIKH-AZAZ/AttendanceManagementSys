@@ -10,6 +10,9 @@ export const MIN_ATTENDANCE_PERCENT = 75;
 export const todayIST = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 
 /** `date` minus `days`, as YYYY-MM-DD. */
+/** True once an ISO deadline is behind us (read at render time; updates on next render). */
+export const isPast = (iso: string) => Date.now() > Date.parse(iso);
+
 export const daysBefore = (date: string, days: number) => {
   const d = new Date(`${date}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() - days);

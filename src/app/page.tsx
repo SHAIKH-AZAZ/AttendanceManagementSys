@@ -20,18 +20,19 @@ function DashboardContent() {
   } | null>(null);
 
   // Land on the role's first section whenever the signed-in role changes.
+  const role = user?.role;
   useEffect(() => {
-    if (user) setActiveTab(defaultTab(user.role));
-  }, [user?.role]);
+    if (role) setActiveTab(defaultTab(role));
+  }, [role]);
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center" role="status">
+      <output className="min-h-screen bg-white flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-brand-600 border-t-transparent rounded-full animate-spin motion-reduce:animate-none" />
           <p className="text-sm text-slate-500">Loading your session…</p>
         </div>
-      </div>
+      </output>
     );
   }
 

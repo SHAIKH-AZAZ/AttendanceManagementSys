@@ -24,7 +24,7 @@ import {
   SelectField,
   SearchField,
 } from '@/components/ui';
-import { Search, UserPlus, Users } from 'lucide-react';
+import { UserPlus, Users } from 'lucide-react';
 
 const ROLES: { value: UserRole; label: string }[] = [
   { value: 'STUDENT', label: 'Student' },

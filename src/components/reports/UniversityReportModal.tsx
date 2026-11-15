@@ -1,17 +1,15 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import type { StudentComplianceStats } from '@/types';
 import Dialog from '@mui/material/Dialog';
 import MuiButton from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import CircularProgress from '@mui/material/CircularProgress';
 import {
   Printer,
-  Download,
   X,
   Award,
-  CheckCircle2,
-  AlertTriangle,
   Building,
 } from 'lucide-react';
 
@@ -21,12 +19,21 @@ interface UniversityReportModalProps {
   onClose: () => void;
 }
 
+/** Shape returned by GET /api/reports/university. */
+interface UniversityReport {
+  institution: Record<'name' | 'campus' | 'department' | 'academicSession' | 'term' | 'documentRef' | 'generatedDate', string>;
+  course: { code: string; title: string; credits: number; section: string; facultyName: string };
+  metrics: { totalEnrolled: number; compliantStudents: number; defaulterStudents: number; classAveragePercentage: string; thresholdRequired: string };
+  students: StudentComplianceStats[];
+  signatories: { title: string; name: string; designation: string }[];
+}
+
 export const UniversityReportModal: React.FC<UniversityReportModalProps> = ({
   courseId,
   sectionId,
   onClose,
 }) => {
-  const [report, setReport] = useState<any | null>(null);
+  const [report, setReport] = useState<UniversityReport | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -172,7 +179,7 @@ export const UniversityReportModal: React.FC<UniversityReportModalProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 font-medium">
-                {report.students.map((stu: any, index: number) => (
+                {report.students.map((stu, index) => (
                   <tr key={stu.studentId} className={stu.isDefaulter ? 'bg-rose-50/60' : ''}>
                     <td className="py-2 px-3 border-r border-slate-300 text-slate-500">{index + 1}</td>
                     <td className="py-2 px-3 border-r border-slate-300 font-mono font-bold">{stu.enrollmentNumber}</td>
@@ -201,7 +208,7 @@ export const UniversityReportModal: React.FC<UniversityReportModalProps> = ({
 
           {/* Official Signatures Block */}
           <div className="pt-8 border-t-2 border-slate-900 grid grid-cols-3 gap-6 text-center text-xs">
-            {report.signatories.map((sig: any, idx: number) => (
+            {report.signatories.map((sig, idx) => (
               <div key={idx} className="flex flex-col justify-end space-y-1">
                 {/* Blank line for a handwritten signature on the printout */}
                 <div className="border-b border-slate-400 h-12" aria-hidden="true" />

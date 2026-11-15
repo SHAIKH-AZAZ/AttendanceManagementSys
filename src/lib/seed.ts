@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
+// Importing '@/models' registers every model (syncIndexes below relies on that).
 import {
-  AssessmentModel, // imported so every model is registered before syncIndexes
   CampusModel,
   CourseModel,
   DepartmentModel,

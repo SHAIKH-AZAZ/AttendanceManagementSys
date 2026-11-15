@@ -7,7 +7,6 @@ import {
   User,
   LectureSession,
   LeaveApplication,
-  AttendanceAudit,
   SystemAuditLog,
   ComplianceThreshold,
 } from '@/types';

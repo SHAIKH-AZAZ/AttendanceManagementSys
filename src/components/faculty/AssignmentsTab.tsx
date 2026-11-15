@@ -12,6 +12,7 @@ import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import type { MetaSection } from '@/hooks/useMeta';
 import type { Assignment, StoredFile, Submission } from '@/types';
+import { isPast } from '@/lib/rules';
 import { useUpload } from '@/hooks/useUpload';
 import { Badge, Button, Card, DateTimeInput, EmptyState, Modal, Notice, type NoticeTone, PageHeader, SelectField } from '@/components/ui';
 import { AttachButton, FileList } from '@/components/ui/FileList';
@@ -279,7 +280,7 @@ export function AssignmentsTab({
               </TableHead>
               <TableBody>
                 {rows.map((r) => {
-                  const overdue = Date.now() > Date.parse(r.dueAt);
+                  const overdue = isPast(r.dueAt);
                   return (
                     <TableRow key={r.id} hover>
                       <TableCell sx={{ pl: 2.5 }}>
