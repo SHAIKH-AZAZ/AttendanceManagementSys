@@ -234,13 +234,13 @@ export function MarksTab({
         actions={
           <>
             <SelectField
-              ariaLabel="Class"
+              label="Subject · class" fullWidth={false}
               value={sectionId}
               onChange={(v) => {
                 setSectionId(v);
                 setOpen(null);
               }}
-              minWidth={220}
+              minWidth={320}
               options={sections.map((s) => ({ value: s.id, label: classLabel(s.id) }))}
             />
             <Button variant="primary" icon={Plus} onClick={() => {

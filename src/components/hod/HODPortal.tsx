@@ -39,7 +39,7 @@ type LeaveFilter = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export const HODPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, onOpenUniversityReport }) => {
   const { user } = useAuth();
-  const { meta, course, classLabel, reload } = useMeta();
+  const { meta, course, classLabel, groupLabel, reload } = useMeta();
   const [allocBusy, setAllocBusy] = useState<string | null>(null);
 
   const [leaves, setLeaves] = useState<LeaveApplication[]>([]);
@@ -255,7 +255,7 @@ export const HODPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, onOp
                         <TableRow key={s.id}>
                           <TableCell>
                             <div className="font-semibold text-slate-800">{course(s.courseId)?.title}</div>
-                            <div className="text-xs text-slate-500">{classLabel(s.id)} · {s.studentCount} students</div>
+                            <div className="text-xs text-slate-500">{course(s.courseId)?.code} · {groupLabel(s.id)} · {s.studentCount} students</div>
                           </TableCell>
                           <TableCell className="text-slate-600">{s.facultyName}</TableCell>
                           <TableCell className="text-slate-600 whitespace-nowrap">

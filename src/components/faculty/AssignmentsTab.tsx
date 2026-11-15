@@ -246,7 +246,7 @@ export function AssignmentsTab({
         description="Publish work for a class, collect submissions and grade them."
         actions={
           <>
-            <SelectField ariaLabel="Class" value={sectionId} onChange={setSectionId} minWidth={220} options={sections.map((s) => ({ value: s.id, label: classLabel(s.id) }))} />
+            <SelectField label="Subject · class" fullWidth={false} value={sectionId} onChange={setSectionId} minWidth={320} options={sections.map((s) => ({ value: s.id, label: classLabel(s.id) }))} />
             <Button
               variant="primary"
               icon={Plus}

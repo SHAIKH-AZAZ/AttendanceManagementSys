@@ -382,7 +382,7 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
             title="Take attendance"
             description="Start a lecture, mark the exceptions, then submit. Submitted lectures are locked."
             actions={
-              <SelectField ariaLabel="Class" value={sectionId} onChange={goTakeAttendance} minWidth={256} options={mySections.map((s) => ({ value: s.id, label: classLabel(s.id) }))} />
+              <SelectField label="Subject · class" fullWidth={false} value={sectionId} onChange={goTakeAttendance} minWidth={320} options={mySections.map((s) => ({ value: s.id, label: classLabel(s.id) }))} />
             }
           />
 
@@ -632,10 +632,10 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
           <Card padded={false}>
             <div className="p-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200">
               <SelectField
-                ariaLabel="Class"
+                label="Subject · class" fullWidth={false}
                 value={sessionsClass}
                 onChange={setSessionsClass}
-                minWidth={220}
+                minWidth={320}
                 options={[{ value: 'ALL', label: 'All classes' }, ...mySections.map((s) => ({ value: s.id, label: classLabel(s.id) }))]}
               />
               <SegmentedControl
@@ -681,7 +681,7 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
                       {rows.map((s) => (
                         <TableRow key={s.id} className="hover:bg-slate-50">
                           <TableCell className="text-slate-600 whitespace-nowrap">{formatDate(s.lectureDate)}</TableCell>
-                          <TableCell className="text-slate-600 whitespace-nowrap">{classLabel(s.sectionId)}</TableCell>
+                          <TableCell className="text-slate-600 min-w-56">{classLabel(s.sectionId)}</TableCell>
                           <TableCell className="font-semibold text-slate-800">
                             {lectureName(s)}
                           </TableCell>
@@ -726,10 +726,10 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
             actions={
               <>
                 <SelectField
-                  ariaLabel="Class"
+                  label="Subject · class" fullWidth={false}
                   value={defaultersClassId}
                   onChange={setDefaultersClassId}
-                  minWidth={220}
+                  minWidth={320}
                   options={mySections.map((s) => ({ value: s.id, label: classLabel(s.id) }))}
                 />
                 {section(defaultersClassId) && (
