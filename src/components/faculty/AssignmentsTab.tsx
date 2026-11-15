@@ -13,7 +13,7 @@ import TableRow from '@mui/material/TableRow';
 import type { MetaSection } from '@/hooks/useMeta';
 import type { Assignment, StoredFile, Submission } from '@/types';
 import { useUpload } from '@/hooks/useUpload';
-import { Badge, Button, Card, EmptyState, Modal, Notice, type NoticeTone, PageHeader, SelectField } from '@/components/ui';
+import { Badge, Button, Card, DateTimeInput, EmptyState, Modal, Notice, type NoticeTone, PageHeader, SelectField } from '@/components/ui';
 import { AttachButton, FileList } from '@/components/ui/FileList';
 import { ArrowLeft, BookOpenCheck, Plus, Trash2 } from 'lucide-react';
 
@@ -330,7 +330,7 @@ export function AssignmentsTab({
           <div className="sm:col-span-2">
             <TextField id="asg-instructions" label="Instructions" multiline minRows={3} value={form.instructions} onChange={(e) => setForm({ ...form, instructions: e.target.value })} slotProps={{ htmlInput: { maxLength: 5000 } }} />
           </div>
-          <TextField id="asg-due" label="Due" type="datetime-local" required value={form.dueAt} onChange={(e) => setForm({ ...form, dueAt: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} />
+          <DateTimeInput id="asg-due" label="Due" required value={form.dueAt} onChange={(v) => setForm({ ...form, dueAt: v })} />
           <TextField id="asg-max" label="Marks (optional)" type="number" value={form.maxMarks} onChange={(e) => setForm({ ...form, maxMarks: e.target.value })} helperText="Leave empty for no marks" slotProps={{ htmlInput: { min: 1, max: 1000 } }} />
           <div className="sm:col-span-2">
             <FormControlLabel control={<Checkbox checked={form.allowLate} onChange={(e) => setForm({ ...form, allowLate: e.target.checked })} />} label="Accept late submissions (marked late)" />

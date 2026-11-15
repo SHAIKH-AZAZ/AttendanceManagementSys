@@ -30,6 +30,7 @@ import {
   SelectField,
   SearchField,
   AttendancePicker,
+  DateInput,
 } from '@/components/ui';
 import TextField from '@mui/material/TextField';
 import ButtonBase from '@mui/material/ButtonBase';
@@ -402,14 +403,14 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
                     description={`${classLabel(sectionId)} · ${currentSection?.studentCount ?? 0} students`}
                   />
                   <div className="mt-5 grid sm:grid-cols-[10rem_8rem_1fr] gap-4">
-                    <TextField
+                    <DateInput
                       id="lec-date"
                       label="Date"
-                      type="date"
                       value={newDate}
-                      onChange={(e) => setNewDate(e.target.value)}
+                      onChange={setNewDate}
                       helperText={`Up to ${ATTENDANCE_ENTRY_WINDOW_DAYS} days back`}
-                      slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: today(), min: daysBefore(today(), ATTENDANCE_ENTRY_WINDOW_DAYS) } }}
+                      max={today()}
+                      min={daysBefore(today(), ATTENDANCE_ENTRY_WINDOW_DAYS)}
                     />
                     <SelectField
                       id="lec-periods"

@@ -4,6 +4,7 @@ import { AppRouterCacheProvider } from '@mui/material-nextjs/v16-appRouter';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import theme from '@/theme';
+import { Providers } from './providers';
 import './globals.css';
 
 const jakarta = Plus_Jakarta_Sans({
@@ -31,7 +32,7 @@ export default function RootLayout({
         <AppRouterCacheProvider options={{ enableCssLayer: true }}>
           <ThemeProvider theme={theme}>
             <CssBaseline />
-            {children}
+            <Providers>{children}</Providers>
           </ThemeProvider>
         </AppRouterCacheProvider>
       </body>

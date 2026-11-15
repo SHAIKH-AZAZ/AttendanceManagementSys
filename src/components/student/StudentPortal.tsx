@@ -34,6 +34,7 @@ import {
   formatDate,
   lectureName,
   SelectField,
+  DateInput,
 } from '@/components/ui';
 import { BookOpen, CalendarPlus, FileText, History, Paperclip, Send } from 'lucide-react';
 
@@ -408,25 +409,8 @@ export const StudentPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab }
             options={(Object.keys(LEAVE_TYPES) as LeaveType[]).map((k) => ({ value: k, label: LEAVE_TYPES[k].label }))}
           />
           <div className="grid grid-cols-2 gap-3">
-            <TextField
-              id="leave-from"
-              label="From"
-              type="date"
-              required
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              slotProps={{ inputLabel: { shrink: true } }}
-            />
-            <TextField
-              id="leave-to"
-              label="To"
-              type="date"
-              required
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              error={!!dateError}
-              slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: startDate } }}
-            />
+            <DateInput id="leave-from" label="From" required value={startDate} onChange={setStartDate} />
+            <DateInput id="leave-to" label="To" required value={endDate} onChange={setEndDate} error={!!dateError} min={startDate || undefined} />
           </div>
           {dateError && <p className="text-xs text-rose-600 -mt-2">{dateError}</p>}
           <TextField

@@ -1,6 +1,7 @@
 'use client';
 
 import { createTheme } from '@mui/material/styles';
+import type {} from '@mui/x-date-pickers/themeAugmentation';
 
 /**
  * AttendEASE365 theme — the single source of colour. MUI writes the palette
@@ -105,6 +106,11 @@ const theme = createTheme({
     MuiToggleButton: { styleOverrides: { root: { textTransform: 'none', fontWeight: 600 } } },
     MuiLinearProgress: { styleOverrides: { root: { height: 8, borderRadius: 999, backgroundColor: TOKENS.fill }, bar: { borderRadius: 999 } } },
     MuiMenu: { styleOverrides: { paper: { borderRadius: 12, boxShadow: TOKENS.shadowLift } } },
+    // Date & time pickers: same card look as menus, rounded time cells, sentence-case headings.
+    MuiPickerPopper: { styleOverrides: { paper: { borderRadius: 12, boxShadow: TOKENS.shadowLift, border: `1px solid ${TOKENS.rule}` } } },
+    MuiMultiSectionDigitalClockSection: { styleOverrides: { item: { borderRadius: 8, marginInline: 4, width: 'auto' } } },
+    MuiPickersToolbar: { styleOverrides: { root: { '& .MuiTypography-overline': { textTransform: 'none', letterSpacing: 0, fontSize: '.8125rem' } }, title: { fontWeight: 600 } } },
+    MuiPickersCalendarHeader: { styleOverrides: { label: { fontWeight: 600 } } },
   },
 });
 

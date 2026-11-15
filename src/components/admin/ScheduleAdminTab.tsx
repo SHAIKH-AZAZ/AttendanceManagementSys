@@ -12,7 +12,7 @@ import IconButton from '@mui/material/IconButton';
 import type { Meta } from '@/hooks/useMeta';
 import type { CalendarEvent, ExamType } from '@/types';
 import { todayIST } from '@/lib/rules';
-import { Badge, Button, Card, CardHeader, EmptyState, Modal, type NoticeTone, PageHeader, SelectField, formatDate } from '@/components/ui';
+import { Badge, Button, Card, CardHeader, DateInput, EmptyState, Modal, type NoticeTone, PageHeader, SelectField, TimeInput, formatDate } from '@/components/ui';
 import type { ScheduleExam } from '@/components/schedule/ScheduleTab';
 import { CalendarPlus, CalendarDays, ClipboardList, Trash2 } from 'lucide-react';
 
@@ -174,10 +174,12 @@ export function ScheduleAdminTab({ meta, notify }: { meta: Meta; notify: (n: { t
           <SelectField<ExamType> id="exam-type" label="Type" value={exam.examType} onChange={(v) => setExam({ ...exam, examType: v })} options={EXAM_TYPES} />
           <TextField id="exam-divisions" label="Divisions" required value={exam.divisions} onChange={(e) => setExam({ ...exam, divisions: e.target.value })} placeholder="5CEA, 5CEB" slotProps={{ inputLabel: { shrink: true } }} />
           <TextField id="exam-room" label="Room (optional)" value={exam.room} onChange={(e) => setExam({ ...exam, room: e.target.value })} placeholder="8109" slotProps={{ inputLabel: { shrink: true }, htmlInput: { maxLength: 20 } }} />
-          <TextField id="exam-date" label="Date" type="date" required value={exam.date} onChange={(e) => setExam({ ...exam, date: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} />
-          <div className="grid grid-cols-2 gap-3">
-            <TextField id="exam-start" label="Start" type="time" required value={exam.start} onChange={(e) => setExam({ ...exam, start: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} />
-            <TextField id="exam-end" label="End" type="time" required value={exam.end} onChange={(e) => setExam({ ...exam, end: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} />
+          <div className="sm:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="col-span-2 sm:col-span-1">
+              <DateInput id="exam-date" label="Date" required value={exam.date} onChange={(v) => setExam({ ...exam, date: v })} />
+            </div>
+            <TimeInput id="exam-start" label="Start" required value={exam.start} onChange={(v) => setExam({ ...exam, start: v })} />
+            <TimeInput id="exam-end" label="End" required value={exam.end} onChange={(v) => setExam({ ...exam, end: v })} />
           </div>
           <div className="sm:col-span-2">
             <TextField id="exam-note" label="Note (optional)" value={exam.note} onChange={(e) => setExam({ ...exam, note: e.target.value })} placeholder="Syllabus: units 1–3" slotProps={{ inputLabel: { shrink: true }, htmlInput: { maxLength: 200 } }} />
@@ -217,8 +219,8 @@ export function ScheduleAdminTab({ meta, notify }: { meta: Meta; notify: (n: { t
           </div>
           <SelectField<CalendarEvent['kind']> id="event-kind" label="Kind" value={event.kind} onChange={(v) => setEvent({ ...event, kind: v })} options={[{ value: 'HOLIDAY', label: 'Holiday' }, { value: 'EVENT', label: 'Event' }, { value: 'DEADLINE', label: 'Deadline' }]} />
           <SelectField<CalendarEvent['audience']> id="event-audience" label="Shown to" value={event.audience} onChange={(v) => setEvent({ ...event, audience: v })} options={[{ value: 'ALL', label: 'Everyone' }, { value: 'STUDENTS', label: 'Students' }, { value: 'STAFF', label: 'Staff' }]} />
-          <TextField id="event-date" label="From" type="date" required value={event.date} onChange={(e) => setEvent({ ...event, date: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} />
-          <TextField id="event-end" label="To (optional)" type="date" value={event.endDate} onChange={(e) => setEvent({ ...event, endDate: e.target.value })} slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: event.date } }} />
+          <DateInput id="event-date" label="From" required value={event.date} onChange={(v) => setEvent({ ...event, date: v })} />
+          <DateInput id="event-end" label="To (optional)" value={event.endDate} min={event.date || undefined} onChange={(v) => setEvent({ ...event, endDate: v })} />
           {error && <p className="col-span-2 text-sm text-rose-600">{error}</p>}
         </form>
       </Modal>

@@ -11,7 +11,7 @@ import TableRow from '@mui/material/TableRow';
 import type { MetaSection } from '@/hooks/useMeta';
 import type { Assessment, MarkEntry } from '@/types';
 import { ASSESSMENT_COMPONENTS, MARKS_NEED_HOD_APPROVAL, todayIST } from '@/lib/rules';
-import { Badge, Button, Card, EmptyState, Modal, Notice, type NoticeTone, PageHeader, SelectField, formatDate } from '@/components/ui';
+import { Badge, Button, Card, DateInput, EmptyState, Modal, Notice, type NoticeTone, PageHeader, SelectField, formatDate } from '@/components/ui';
 import { ASSESSMENT_STATUS, MarksStats, MarksTable, liveStats } from '@/components/marks/MarksTable';
 import { ArrowLeft, ClipboardList, Plus, Save, Send, Trash2 } from 'lucide-react';
 
@@ -319,7 +319,7 @@ export function MarksTab({
           <SelectField id="asmt-type" label="Type" value={form.component} onChange={(v) => setForm({ ...form, component: v })} options={ASSESSMENT_COMPONENTS.map((c) => ({ value: c, label: c }))} />
           <TextField id="asmt-max" label="Out of" type="number" required value={form.maxMarks} onChange={(e) => setForm({ ...form, maxMarks: e.target.value })} slotProps={{ htmlInput: { min: 1, max: 1000 } }} />
           <div className="col-span-2">
-            <TextField id="asmt-date" label="Date" type="date" required value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} />
+            <DateInput id="asmt-date" label="Date" required value={form.date} onChange={(v) => setForm({ ...form, date: v })} />
           </div>
           {error && <p className="col-span-2 text-sm text-rose-600">{error}</p>}
         </form>

@@ -27,6 +27,10 @@ import MenuItem from '@mui/material/MenuItem';
 import InputAdornment from '@mui/material/InputAdornment';
 import { useTheme } from '@mui/material/styles';
 import { Info, Search, X } from 'lucide-react';
+import dayjs from 'dayjs';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
+import { TimePicker } from '@mui/x-date-pickers/TimePicker';
 import { TOKENS } from '@/theme';
 import type { AttendanceStatus, LeaveStatus, LeaveType } from '@/types';
 
@@ -165,7 +169,7 @@ export function PageHeader({
           )}
         </Box>
         {actions && (
-          <Stack direction="row" sx={{ gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+          <Stack direction="row" sx={{ gap: 1, alignItems: "center", flexWrap: "wrap", minWidth: 0, maxWidth: "100%" }}>
             {actions}
           </Stack>
         )}
@@ -596,7 +600,8 @@ export function SelectField<T extends string>({
       onChange={(e) => onChange(e.target.value as T)}
       helperText={helperText}
       fullWidth={fullWidth ?? !!label}
-      sx={{ minWidth, maxWidth: '100%' }}
+      // Never wider than the screen: long subject names get an ellipsis on phones.
+      sx={{ minWidth: typeof minWidth === 'number' ? `min(${minWidth}px, 100%)` : minWidth, maxWidth: '100%' }}
       slotProps={{
         // The visible MUI select is a div[role=combobox]; name it when there's no visible label.
         select: label ? undefined : { SelectDisplayProps: { 'aria-label': ariaLabel } as React.HTMLAttributes<HTMLDivElement> },
@@ -639,6 +644,72 @@ export function SearchField({
           ),
         },
       }}
+    />
+  );
+}
+
+/* ------------------------------------------------------------ Date & time */
+
+type PickerCommon = {
+  id?: string;
+  label: string;
+  required?: boolean;
+  helperText?: React.ReactNode;
+  error?: boolean;
+  disabled?: boolean;
+};
+
+/** Popover calendar on wider screens, full dialog on phones — decided by width, not pointer type. */
+const PICKER_DESKTOP_QUERY = '@media (min-width: 600px)';
+
+const fieldProps = (p: PickerCommon) => ({
+  textField: { id: p.id, required: p.required, helperText: p.helperText, error: p.error, size: 'small' as const, fullWidth: true },
+});
+
+/** Date picker that works with plain "YYYY-MM-DD" strings ('' = empty). Shown as DD/MM/YYYY. */
+export function DateInput({ value, onChange, min, max, ...p }: PickerCommon & { value: string; onChange: (v: string) => void; min?: string; max?: string }) {
+  return (
+    <DatePicker
+      label={p.label}
+      value={value ? dayjs(value) : null}
+      onChange={(v) => onChange(v && v.isValid() ? v.format('YYYY-MM-DD') : '')}
+      minDate={min ? dayjs(min) : undefined}
+      maxDate={max ? dayjs(max) : undefined}
+      disabled={p.disabled}
+      desktopModeMediaQuery={PICKER_DESKTOP_QUERY}
+      slotProps={fieldProps(p)}
+    />
+  );
+}
+
+/** Date-and-time picker for "YYYY-MM-DDTHH:mm" strings in the user's local time. */
+export function DateTimeInput({ value, onChange, minNow, ...p }: PickerCommon & { value: string; onChange: (v: string) => void; minNow?: boolean }) {
+  return (
+    <DateTimePicker
+      label={p.label}
+      value={value ? dayjs(value) : null}
+      onChange={(v) => onChange(v && v.isValid() ? v.format('YYYY-MM-DDTHH:mm') : '')}
+      disablePast={minNow}
+      ampm
+      disabled={p.disabled}
+      desktopModeMediaQuery={PICKER_DESKTOP_QUERY}
+      slotProps={fieldProps(p)}
+    />
+  );
+}
+
+/** Time picker for "HH:mm" strings (24-hour value, shown with AM/PM). */
+export function TimeInput({ value, onChange, ...p }: PickerCommon & { value: string; onChange: (v: string) => void }) {
+  return (
+    <TimePicker
+      label={p.label}
+      value={value ? dayjs(`2000-01-01T${value}`) : null}
+      onChange={(v) => onChange(v && v.isValid() ? v.format('HH:mm') : '')}
+      ampm
+      minutesStep={5}
+      disabled={p.disabled}
+      desktopModeMediaQuery={PICKER_DESKTOP_QUERY}
+      slotProps={fieldProps(p)}
     />
   );
 }
