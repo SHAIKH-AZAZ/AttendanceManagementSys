@@ -17,6 +17,7 @@ import Container from '@mui/material/Container';
 import { User, UserRole } from '@/types';
 import { TABS } from '@/lib/navigation';
 import { TOKENS } from '@/theme';
+import { NotificationBell } from './NotificationBell';
 import { BookOpen, ChevronDown, GraduationCap, LogOut, ShieldCheck, UserCog } from 'lucide-react';
 
 interface NavbarProps {
@@ -70,6 +71,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUser, onLogout, activeTab
             <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>AttendEASE365</Typography>
           </Box>
 
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <NotificationBell onOpenTab={setActiveTab} />
           <ButtonBase
             onClick={(e) => setAnchor(e.currentTarget)}
             aria-haspopup="menu"
@@ -90,6 +93,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUser, onLogout, activeTab
             </Box>
             <ChevronDown size={16} color={TOKENS.steel} style={{ transform: anchor ? 'rotate(180deg)' : undefined, transition: 'transform .15s' }} />
           </ButtonBase>
+          </Box>
 
           <Menu
             anchorEl={anchor}

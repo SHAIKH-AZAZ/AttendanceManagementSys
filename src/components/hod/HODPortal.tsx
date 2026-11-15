@@ -11,6 +11,8 @@ import Checkbox from '@mui/material/Checkbox';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { MarksReviewTab } from './MarksReviewTab';
+import { ScheduleTab } from '@/components/schedule/ScheduleTab';
 import { useMeta, type MetaSection } from '@/hooks/useMeta';
 import type { PortalProps } from '@/lib/navigation';
 import type { LeaveApplication, LectureSession, StudentComplianceStats } from '@/types';
@@ -37,7 +39,8 @@ type LeaveFilter = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export const HODPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, onOpenUniversityReport }) => {
   const { user } = useAuth();
-  const { meta, course, classLabel } = useMeta();
+  const { meta, course, classLabel, reload } = useMeta();
+  const [allocBusy, setAllocBusy] = useState<string | null>(null);
 
   const [leaves, setLeaves] = useState<LeaveApplication[]>([]);
   const [sessions, setSessions] = useState<LectureSession[]>([]);
@@ -87,15 +90,21 @@ export const HODPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, onOp
   const classStats = (s: MetaSection) => {
     const list = sessions.filter((x) => x.sectionId === s.id);
     const lockedList = list.filter((x) => x.isLocked);
-    const avg = lockedList.length
+    // Weighted by periods, so a 2-period lab counts twice.
+    const periods = lockedList.reduce((n, x) => n + (x.periods ?? 1), 0);
+    const avg = periods
       ? Math.round(
-          lockedList.reduce((sum, x) => sum + (x.summary.totalStudents ? x.summary.presentCount / x.summary.totalStudents : 0), 0) /
-            lockedList.length *
+          (lockedList.reduce(
+            (sum, x) => sum + (x.summary.totalStudents ? x.summary.presentCount / x.summary.totalStudents : 0) * (x.periods ?? 1),
+            0
+          ) /
+            periods) *
             100
         )
       : null;
     return {
       locked: lockedList.length,
+      periods,
       drafts: list.length - lockedList.length,
       avg,
       below: (compliance[s.id] ?? []).filter((x) => x.isDefaulter).length,
@@ -250,7 +259,7 @@ export const HODPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, onOp
                           </TableCell>
                           <TableCell className="text-slate-600">{s.facultyName}</TableCell>
                           <TableCell className="text-slate-600 whitespace-nowrap">
-                            {st.locked} locked{st.drafts > 0 && <Badge tone="warn" className="ml-2">{st.drafts} draft</Badge>}
+                            {st.locked} locked · {st.periods} periods{st.drafts > 0 && <Badge tone="warn" className="ml-2">{st.drafts} draft</Badge>}
                           </TableCell>
                           <TableCell className="text-slate-600">{st.avg === null ? '—' : `${st.avg}%`}</TableCell>
                           <TableCell className={`font-semibold ${st.below ? 'text-rose-600' : 'text-slate-500'}`}>{st.below}</TableCell>
@@ -329,7 +338,11 @@ export const HODPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, onOp
                       )}
                     </div>
                     <p className="mt-3 text-sm text-slate-700">{l.reason}</p>
-                    {l.documentUrl && <Badge icon={Paperclip} className="mt-3">Proof attached</Badge>}
+                    {l.documentUrl?.startsWith('/api/files/') && (
+                      <a href={l.documentUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:underline">
+                        <Paperclip className="w-4 h-4" /> View proof
+                      </a>
+                    )}
                     {l.status !== 'PENDING' && l.reviewComments && (
                       <p className="mt-3 text-sm text-slate-500">
                         <span className="font-semibold text-slate-700">Your comment: </span>
@@ -407,9 +420,9 @@ export const HODPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, onOp
                                 <span className={`w-12 font-bold ${s.isDefaulter ? 'text-rose-600' : 'text-emerald-700'}`}>{s.percentage}%</span>
                                 <div className="flex-1"><ProgressBar value={s.percentage} /></div>
                               </div>
-                              <div className="text-xs text-slate-500 mt-1">{s.attendedLectures} of {s.totalLectures}</div>
+                              <div className="text-xs text-slate-500 mt-1">{s.attendedPeriods} of {s.totalPeriods} periods</div>
                             </TableCell>
-                            <TableCell className="text-slate-600">{s.isDefaulter ? `${s.neededFor75} in a row` : 'On track'}</TableCell>
+                            <TableCell className="text-slate-600">{s.isDefaulter ? `${s.neededFor75} periods in a row` : 'On track'}</TableCell>
                             <TableCell align="right">
                               {s.isDefaulter && (
                                 <Button size="sm" icon={Mail} onClick={() => sendWarning(s)}>
@@ -429,6 +442,88 @@ export const HODPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, onOp
         </>
       )}
 
+      {activeTab === 'hod-marks' && <MarksReviewTab classLabel={classLabel} notify={setNotice} />}
+      {activeTab === 'hod-schedule' && <ScheduleTab description="Exams for your department's subjects, holidays and college events." />}
+
+      {/* ----------------------------------------------------------- Allocation */}
+      {activeTab === 'hod-allocation' && (
+        <>
+          <PageHeader
+            title="Subject allocation"
+            description="Who teaches each class in your department. Changing it moves future lectures to the new teacher; past lectures keep their original teacher."
+          />
+          <Card padded={false}>
+            {deptSections.length === 0 ? (
+              <EmptyState icon={BookOpen} title="No classes yet" description="The admin office adds subjects and classes under Academic structure." />
+            ) : (
+              <TableContainer>
+                <Table size="small" sx={{ minWidth: 760 }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Subject</TableCell>
+                      <TableCell>Class</TableCell>
+                      <TableCell>Type</TableCell>
+                      <TableCell align="center">Students</TableCell>
+                      <TableCell sx={{ width: 260 }}>Teacher</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {deptSections.map((s) => (
+                      <TableRow key={s.id}>
+                        <TableCell>
+                          <div className="font-mono text-xs text-slate-500">{course(s.courseId)?.code}</div>
+                          <div className="font-semibold text-slate-800">{course(s.courseId)?.title}</div>
+                        </TableCell>
+                        <TableCell className="text-slate-600">
+                          {s.name}
+                          {(s.divisions?.length || s.batch) && (
+                            <div className="text-xs text-slate-500">{[s.divisions?.join(' + '), s.batch].filter(Boolean).join(' · ')}</div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-slate-600 whitespace-nowrap">
+                          {s.kind === 'LAB' ? `Lab · ${s.defaultPeriods ?? 2} periods` : 'Theory'}
+                        </TableCell>
+                        <TableCell align="center" className="text-slate-600">{s.studentCount}</TableCell>
+                        <TableCell>
+                          <SelectField
+                            ariaLabel={`Teacher for ${s.name}`}
+                            value={s.facultyId}
+                            fullWidth
+                            onChange={async (facultyId) => {
+                              setAllocBusy(s.id);
+                              try {
+                                const res = await fetch(`/api/sections/${s.id}/faculty`, {
+                                  method: 'PUT',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ facultyId }),
+                                });
+                                const data = await res.json();
+                                setNotice(
+                                  res.ok
+                                    ? { tone: 'success', text: `${s.name} is now taught by ${meta.faculty.find((f) => f.id === facultyId)?.fullName}.` }
+                                    : { tone: 'error', text: data.error || 'Could not change the teacher.' }
+                                );
+                                reload();
+                              } finally {
+                                setAllocBusy(null);
+                              }
+                            }}
+                            options={meta.faculty
+                              .filter((f) => f.departmentId === user?.departmentId)
+                              .map((f) => ({ value: f.id, label: f.role === 'HOD' ? `${f.fullName} (HOD)` : f.fullName }))}
+                          />
+                          {allocBusy === s.id && <div className="text-xs text-slate-500 mt-1">Saving…</div>}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </Card>
+        </>
+      )}
+
       {/* -------------------------------------------------------------- Reports */}
       {activeTab === 'hod-reports' && (
         <>
@@ -441,7 +536,7 @@ export const HODPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, onOp
                   <Badge tone="accent" className="self-start">{course(s.courseId)?.code}</Badge>
                   <h3 className="mt-2 font-semibold text-slate-800">{course(s.courseId)?.title}</h3>
                   <p className="text-sm text-slate-500">{s.name} · {s.facultyName}</p>
-                  <p className="mt-3 text-xs text-slate-500">{st.locked} locked lectures · {s.studentCount} students</p>
+                  <p className="mt-3 text-xs text-slate-500">{st.locked} locked lectures ({st.periods} periods) · {s.studentCount} students</p>
                   <Button className="mt-4" icon={Award} disabled={!st.locked} onClick={() => onOpenUniversityReport(s.courseId, s.id)}>
                     {st.locked ? 'Open report' : 'No lectures yet'}
                   </Button>

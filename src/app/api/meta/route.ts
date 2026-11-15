@@ -17,6 +17,10 @@ export async function GET() {
   ]);
 
   return NextResponse.json({
+    // Teachers who can be assigned to classes (names only; no contact details).
+    faculty: users
+      .filter((u) => u.isActive && (u.role === 'FACULTY' || u.role === 'HOD'))
+      .map((u) => ({ id: u.id, fullName: u.fullName, departmentId: u.departmentId, role: u.role })),
     campuses,
     departments,
     trimesters,

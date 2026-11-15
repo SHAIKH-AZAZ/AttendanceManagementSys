@@ -7,58 +7,65 @@ export async function GET(request: Request) {
   if (auth instanceof NextResponse) return auth;
   try {
     const { searchParams } = new URL(request.url);
-    const courseId = searchParams.get('courseId') || 'course-ds';
-    const sectionId = searchParams.get('sectionId') || 'sec-ds-a';
+    const courseId = searchParams.get('courseId');
+    const sectionId = searchParams.get('sectionId');
+    if (!courseId || !sectionId) {
+      return NextResponse.json({ error: 'courseId and sectionId are required.' }, { status: 400 });
+    }
 
-    const courses = await dbService.getCourses();
-    const sections = await dbService.getSections();
-    const campuses = await dbService.getCampuses();
-    const departments = await dbService.getDepartments();
+    const [courses, sections, campuses, departments, terms, stats] = await Promise.all([
+      dbService.getCourses(),
+      dbService.getSections(),
+      dbService.getCampuses(),
+      dbService.getDepartments(),
+      dbService.getTrimesters(),
+      dbService.getComplianceStats(courseId, sectionId),
+    ]);
 
     const course = courses.find((c) => c.id === courseId);
     const section = sections.find((s) => s.id === sectionId);
-    const campus = campuses.find((cp) => cp.id === (course?.campusId || 'campus-1'));
-    const department = departments.find((dp) => dp.id === (course?.departmentId || 'dept-cs'));
-
-    const stats = await dbService.getComplianceStats(courseId, sectionId);
+    if (!course || !section) {
+      return NextResponse.json({ error: 'Class not found.' }, { status: 404 });
+    }
+    const campus = campuses.find((cp) => cp.id === course.campusId);
+    const department = departments.find((dp) => dp.id === course.departmentId);
+    const term = terms.find((t) => t.id === section.trimesterId);
+    const [faculty, hod] = await Promise.all([
+      dbService.getUserById(section.facultyId),
+      department?.hodUserId ? dbService.getUserById(department.hodUserId) : undefined,
+    ]);
 
     const reportData = {
       institution: {
-        name: 'STATE UNIVERSITY OF ADVANCED TECHNOLOGY & SCIENCES',
-        campus: campus?.name || 'North Campus',
-        department: department?.name || 'Department of Computer Science & Engineering',
-        academicSession: '2026-2027',
-        term: 'Trimester 2 (Spring 2026)',
-        documentRef: `SUATS/CSE/ATT-SUB-${Date.now().toString().slice(-6)}`,
-        generatedDate: new Date().toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-        }),
+        name: campus?.name ?? 'Government Engineering College, Modasa',
+        campus: 'Affiliated to Gujarat Technological University (GTU)',
+        department: department?.name ?? '',
+        academicSession: term?.academicSession ?? '',
+        term: term?.name ?? '',
+        documentRef: `${campus?.code ?? 'GECM'}/${department?.code ?? 'DEPT'}/ATT-${Date.now().toString().slice(-6)}`,
+        generatedDate: new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' }),
       },
       course: {
-        code: course?.code || 'CS-301',
-        title: course?.title || 'Data Structures & Algorithms',
-        credits: course?.credits || 4,
-        section: section?.name || 'Section A',
-        facultyName: 'Prof. Rajesh Sharma',
+        code: course.code,
+        title: course.title,
+        credits: course.credits,
+        section: section.name,
+        facultyName: faculty?.fullName ?? '',
       },
       metrics: {
         totalEnrolled: stats.length,
         compliantStudents: stats.filter((s) => !s.isDefaulter).length,
         defaulterStudents: stats.filter((s) => s.isDefaulter).length,
         classAveragePercentage:
-          stats.length > 0
-            ? (stats.reduce((acc, curr) => acc + curr.percentage, 0) / stats.length).toFixed(1)
-            : '0.0',
+          stats.length > 0 ? (stats.reduce((acc, curr) => acc + curr.percentage, 0) / stats.length).toFixed(1) : '0.0',
         thresholdRequired: '75.0%',
       },
       students: stats,
+      // Real names from the database; the Principal signs by hand on the printout.
       signatories: [
-        { title: 'Course Instructor', name: 'Prof. Rajesh Sharma', designation: 'Associate Professor' },
-        { title: 'Head of Department', name: 'Dr. Sunita Rao', designation: 'Professor & HOD (CSE)' },
-        { title: 'Dean of Academic Affairs', name: 'Dr. P. K. Singhania', designation: 'Dean (Academics)' },
-        { title: 'Controller of Examinations', name: 'Dr. M. S. Varma', designation: 'Registrar & COE' },
+        { title: 'Course faculty', name: faculty?.fullName ?? '', designation: faculty?.facultyProfile?.designation ?? '' },
+        { title: 'Head of Department', name: hod?.fullName ?? '', designation: department?.name ?? '' },
+        { title: 'Principal', name: '', designation: campus?.name ?? '' },
       ],
     };
 

@@ -11,12 +11,17 @@ export interface Meta {
   trimesters: Trimester[];
   courses: Course[];
   sections: MetaSection[];
+  faculty: { id: string; fullName: string; departmentId?: string; role: 'FACULTY' | 'HOD' }[];
 }
 
 /** Academic structure (courses, sections, departments…) from /api/meta. */
 export function useMeta() {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [version, setVersion] = useState(0);
+  /** Re-fetch after creating or reassigning classes. */
+  const reload = () => setVersion((v) => v + 1);
 
   useEffect(() => {
     let alive = true;
@@ -27,7 +32,7 @@ export function useMeta() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [version]);
 
   const course = (id: string) => meta?.courses.find((c) => c.id === id);
   const section = (id: string) => meta?.sections.find((s) => s.id === id);
@@ -38,5 +43,5 @@ export function useMeta() {
     return s ? `${c?.code ?? s.courseId} · ${s.name}` : sectionId;
   };
 
-  return { meta, error, course, section, classLabel };
+  return { meta, error, course, section, classLabel, reload };
 }

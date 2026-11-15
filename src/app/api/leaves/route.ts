@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { dbService } from '@/lib/db-service';
 import { requireUser } from '@/lib/auth';
+import { getFileMeta } from '@/lib/services/files';
+import { fileUrl } from '@/lib/services/file-access';
+import { notify } from '@/lib/services/notifications';
 
 export async function GET(request: Request) {
   const auth = await requireUser('STUDENT', 'FACULTY', 'HOD', 'ADMIN_STAFF');
@@ -40,7 +43,7 @@ export async function POST(request: Request) {
       startDate,
       endDate,
       reason,
-      documentUrl,
+      fileId,
     } = body;
 
     if (!startDate || !endDate || !reason || !leaveType) {
@@ -60,6 +63,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Give a reason (up to 500 characters).' }, { status: 400 });
     }
 
+    // Proof must be a file this student uploaded for leave; never a free-form link.
+    let documentUrl: string | undefined;
+    if (fileId !== undefined && fileId !== null && fileId !== '') {
+      const meta = typeof fileId === 'string' ? await getFileMeta(fileId) : null;
+      if (!meta || meta.ownerId !== auth.id || meta.purpose !== 'LEAVE_PROOF') {
+        return NextResponse.json({ error: 'Attach the proof again; the upload was not found.' }, { status: 400 });
+      }
+      documentUrl = fileUrl(meta.id);
+    }
+
     const leave = await dbService.submitLeave({
       studentId: auth.id,
       studentName: auth.fullName,
@@ -70,9 +83,14 @@ export async function POST(request: Request) {
       startDate,
       endDate,
       reason,
-      documentUrl: typeof documentUrl === 'string' && documentUrl ? documentUrl.slice(0, 200) : undefined,
+      documentUrl,
     });
 
+    const hods = (await dbService.getUsers()).filter((u) => u.role === 'HOD' && u.isActive && u.departmentId === leave.departmentId);
+    await notify(
+      hods.map((h) => h.id),
+      { title: 'New leave request', body: `${leave.studentName} · ${leave.leaveType.toLowerCase().replace('_', ' ')} · ${leave.startDate} to ${leave.endDate}`, tab: 'hod-leaves' }
+    );
     return NextResponse.json({ leave }, { status: 201 });
   } catch (error) {
     return NextResponse.json(

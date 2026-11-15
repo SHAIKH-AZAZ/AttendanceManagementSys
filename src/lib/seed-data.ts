@@ -15,23 +15,9 @@ import {
 export const INITIAL_CAMPUSES: Campus[] = [
   {
     id: 'campus-1',
-    code: 'NORTH',
-    name: 'North Campus (Engineering & Tech)',
-    address: 'University Road, North Zone',
-    isActive: true,
-  },
-  {
-    id: 'campus-2',
-    code: 'SOUTH',
-    name: 'South Campus (Sciences & Research)',
-    address: 'Innovation Boulevard, South Zone',
-    isActive: true,
-  },
-  {
-    id: 'campus-3',
-    code: 'CITY',
-    name: 'City Campus (Executive & Postgrad)',
-    address: 'Central Plaza, Metro Center',
+    code: 'GECM',
+    name: 'Government Engineering College, Modasa',
+    address: 'Shamlaji Road, Modasa, Aravalli, Gujarat',
     isActive: true,
   },
 ];
@@ -40,50 +26,23 @@ export const INITIAL_DEPARTMENTS: Department[] = [
   {
     id: 'dept-cs',
     campusId: 'campus-1',
-    code: 'CSE',
-    name: 'Computer Science & Engineering',
+    code: 'CE-IT',
+    name: 'Computer Engineering & Information Technology',
     hodUserId: 'user-hod-1',
-    isActive: true,
-  },
-  {
-    id: 'dept-it',
-    campusId: 'campus-1',
-    code: 'IT',
-    name: 'Information Technology',
-    isActive: true,
-  },
-  {
-    id: 'dept-ec',
-    campusId: 'campus-1',
-    code: 'ECE',
-    name: 'Electronics & Communication',
-    isActive: true,
-  },
-  {
-    id: 'dept-civil',
-    campusId: 'campus-2',
-    code: 'CIVIL',
-    name: 'Civil Engineering',
     isActive: true,
   },
 ];
 
+// GEC Modasa uses semesters (master timetable: "ODD SEMESTER 2026-27 (BE SEM-5)").
+// The id keeps its old name so existing records still point at it.
 export const INITIAL_TRIMESTERS: Trimester[] = [
   {
     id: 'tri-2026-t2',
-    academicSession: '2026-2027',
-    name: 'Trimester 2 (Spring 2026)',
+    academicSession: '2026-27',
+    name: 'Semester 5 (odd term 2026-27)',
     status: 'ACTIVE',
-    startDate: '2026-01-05',
-    endDate: '2026-05-15',
-  },
-  {
-    id: 'tri-2026-t1',
-    academicSession: '2026-2027',
-    name: 'Trimester 1 (Fall 2025)',
-    status: 'COMPLETED',
-    startDate: '2025-08-01',
-    endDate: '2025-12-15',
+    startDate: '2026-07-01',
+    endDate: '2026-12-31',
   },
 ];
 
@@ -149,6 +108,9 @@ export const INITIAL_SECTIONS: Section[] = [
     courseId: 'course-ds',
     name: 'Section A (Computer-A)',
     facultyId: 'user-faculty-1',
+    kind: 'THEORY',
+    defaultPeriods: 1,
+    divisions: ['5CEA'],
     enrolledStudents: ROSTER_STUDENTS,
   },
   {
@@ -159,7 +121,25 @@ export const INITIAL_SECTIONS: Section[] = [
     courseId: 'course-ds',
     name: 'Section B (Computer-B)',
     facultyId: 'user-faculty-1',
+    kind: 'THEORY',
+    defaultPeriods: 1,
+    divisions: ['5CEB'],
     enrolledStudents: ROSTER_STUDENTS.slice(0, 10),
+  },
+  {
+    // Lab batch: about a quarter of division A, taught in 2-period lab slots.
+    id: 'sec-ds-lab-a1',
+    campusId: 'campus-1',
+    departmentId: 'dept-cs',
+    trimesterId: 'tri-2026-t2',
+    courseId: 'course-ds',
+    name: 'Lab batch A1 (Computer-A)',
+    facultyId: 'user-faculty-1',
+    kind: 'LAB',
+    defaultPeriods: 2,
+    divisions: ['5CEA'],
+    batch: 'A1',
+    enrolledStudents: ROSTER_STUDENTS.slice(0, 4),
   },
   {
     id: 'sec-dbms-a',
@@ -169,6 +149,9 @@ export const INITIAL_SECTIONS: Section[] = [
     courseId: 'course-dbms',
     name: 'Section A (Computer-A)',
     facultyId: 'user-faculty-2',
+    kind: 'THEORY',
+    defaultPeriods: 1,
+    divisions: ['5CEA'],
     enrolledStudents: ROSTER_STUDENTS,
   },
 ];
@@ -290,7 +273,7 @@ export const INITIAL_USERS: User[] = [
 // Helper to generate realistic historical sessions
 function generateHistoricalSessions(): LectureSession[] {
   const sessions: LectureSession[] = [];
-  const baseDate = new Date('2026-02-01');
+  const baseDate = new Date('2026-07-06'); // inside the odd semester
 
   for (let i = 1; i <= 24; i++) {
     const lectureDate = new Date(baseDate);
@@ -343,6 +326,7 @@ function generateHistoricalSessions(): LectureSession[] {
       lectureDate: dateStr,
       sessionNumber: i,
       sessionTitle: `Lecture ${i}: Data Structures Core Topic #${i}`,
+      periods: 1,
       isLocked: true,
       submittedAt: `${dateStr}T11:00:00Z`,
       submittedBy: 'user-faculty-1',
@@ -380,6 +364,7 @@ function generateHistoricalSessions(): LectureSession[] {
     lectureDate: todayStr,
     sessionNumber: 25,
     sessionTitle: 'Lecture 25: Balanced Binary Search Trees & AVL Rotations',
+    periods: 1,
     isLocked: false,
     records: draftRecords,
     summary: {
@@ -472,18 +457,6 @@ export const INITIAL_THRESHOLDS: ComplianceThreshold[] = [
     id: 'thresh-cse',
     campusId: 'campus-1',
     departmentId: 'dept-cs',
-    minPercentage: 75.0,
-    rules: {
-      excusedCountsAsPresent: true,
-      medicalCountsAsPresent: true,
-      onDutyCountsAsPresent: true,
-      lateWeightMultiplier: 1.0,
-    },
-  },
-  {
-    id: 'thresh-it',
-    campusId: 'campus-1',
-    departmentId: 'dept-it',
     minPercentage: 75.0,
     rules: {
       excusedCountsAsPresent: true,

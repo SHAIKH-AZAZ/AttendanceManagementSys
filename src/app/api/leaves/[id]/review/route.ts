@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { dbService } from '@/lib/db-service';
 import { requireUser } from '@/lib/auth';
+import { notify } from '@/lib/services/notifications';
 
 export async function POST(
   request: Request,
@@ -20,7 +21,7 @@ export async function POST(
       );
     }
 
-    const leave = (await dbService.getLeaves()).find((l) => l.id === id);
+    const leave = await dbService.getLeaveById(id);
     if (!leave) {
       return NextResponse.json({ error: 'Leave application not found' }, { status: 404 });
     }
@@ -34,6 +35,15 @@ export async function POST(
       status,
       reviewComments || `Leave ${status.toLowerCase()} by HOD.`
     );
+
+    await notify([result.leave.studentId], {
+      title: `Leave ${status === 'APPROVED' ? 'approved' : 'rejected'}`,
+      body:
+        status === 'APPROVED'
+          ? `Your leave from ${result.leave.startDate} to ${result.leave.endDate} was approved.${result.updatedSessionCount ? ` ${result.updatedSessionCount} absence(s) are now excused.` : ''}`
+          : `Your leave from ${result.leave.startDate} to ${result.leave.endDate} was rejected: ${reviewComments || 'no reason given'}`,
+      tab: 'student-leaves',
+    });
 
     return NextResponse.json({
       message: `Leave ${status.toLowerCase()} successfully. ${result.updatedSessionCount} attendance records updated.`,

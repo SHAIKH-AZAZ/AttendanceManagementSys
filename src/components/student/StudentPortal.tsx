@@ -10,6 +10,9 @@ import TextField from '@mui/material/TextField';
 import MuiButton from '@mui/material/Button';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { StudentMarksTab } from './MarksTab';
+import { StudentAssignmentsTab } from './AssignmentsTab';
+import { ScheduleTab } from '@/components/schedule/ScheduleTab';
 import type { PortalProps } from '@/lib/navigation';
 import type { AttendanceStatus, LeaveApplication, LeaveType } from '@/types';
 import {
@@ -35,7 +38,8 @@ import {
 import { BookOpen, CalendarPlus, FileText, History, Paperclip, Send } from 'lucide-react';
 
 interface Summary {
-  totalSessions: number;
+  /** All counts are in timetable periods (a 2-period lab adds 2). */
+  totalPeriods: number;
   presentCount: number;
   absentCount: number;
   lateCount: number;
@@ -57,12 +61,14 @@ interface Summary {
     courseCode: string;
     sessionNumber: number;
     sessionTitle: string;
+    periods: number;
+    isLab: boolean;
     status: AttendanceStatus;
     remarks?: string;
   }[];
 }
 
-/** Lectures in a row needed to get back to 75%: (a + x) / (t + x) >= 0.75. */
+/** Periods in a row needed to get back to 75%: (a + x) / (t + x) >= 0.75. */
 const neededFor75 = (attended: number, total: number) =>
   Math.max(0, Math.ceil((0.75 * total - attended) / 0.25));
 
@@ -79,7 +85,9 @@ export const StudentPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab }
   const [startDate, setStartDate] = useState(today());
   const [endDate, setEndDate] = useState(today());
   const [reason, setReason] = useState('');
-  const [fileName, setFileName] = useState('');
+  const [proof, setProof] = useState<{ id: string; name: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const [historyCourse, setHistoryCourse] = useState('ALL');
@@ -102,7 +110,8 @@ export const StudentPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab }
     setStartDate(today());
     setEndDate(today());
     setReason('');
-    setFileName('');
+    setProof(null);
+    setUploadError(null);
     setApplyOpen(true);
   };
 
@@ -121,7 +130,7 @@ export const StudentPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab }
           startDate,
           endDate,
           reason: reason.trim(),
-          documentUrl: fileName ? `/uploads/${fileName}` : undefined,
+          fileId: proof?.id,
         }),
       });
       const json = await res.json();
@@ -153,7 +162,7 @@ export const StudentPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab }
   }
 
   const attended = data.presentCount + data.lateCount + data.excusedCount;
-  const need = neededFor75(attended, data.totalSessions);
+  const need = neededFor75(attended, data.totalPeriods);
   const pending = leaves.filter((l) => l.status === 'PENDING').length;
 
   return (
@@ -179,7 +188,7 @@ export const StudentPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab }
 
           {/* Standing */}
           <Card className="mb-5">
-            {data.totalSessions === 0 ? (
+            {data.totalPeriods === 0 ? (
               <EmptyState icon={BookOpen} title="No attendance yet" description="Your percentage appears after your first lecture is submitted by faculty." />
             ) : (
               <div className="grid lg:grid-cols-[1fr_1.4fr] gap-6 items-center">
@@ -199,11 +208,11 @@ export const StudentPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab }
                 </div>
                 {data.isCompliant ? (
                   <Notice tone="success">
-                    You meet the 75% requirement. {attended} of {data.totalSessions} lectures count as attended.
+                    You meet the 75% requirement. {attended} of {data.totalPeriods} periods count as attended.
                   </Notice>
                 ) : (
                   <Notice tone="error">
-                    <strong>You are below 75%.</strong> Attend the next <strong>{need} lectures in a row</strong> to get back
+                    <strong>You are below 75%.</strong> Attend the next <strong>{need} periods in a row</strong> to get back
                     above the line. If you missed lectures for a valid reason, apply for leave with proof.
                   </Notice>
                 )}
@@ -212,9 +221,9 @@ export const StudentPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab }
           </Card>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="Lectures" value={data.totalSessions} />
-            <StatCard label="Present" value={data.presentCount} tone="good" />
-            <StatCard label="Absent" value={data.absentCount} tone={data.absentCount ? 'bad' : 'neutral'} onClick={() => { setHistoryStatus('ABSENT'); setActiveTab('student-history'); }} />
+            <StatCard label="Periods held" value={data.totalPeriods} />
+            <StatCard label="Periods present" value={data.presentCount} tone="good" />
+            <StatCard label="Periods absent" value={data.absentCount} tone={data.absentCount ? 'bad' : 'neutral'} onClick={() => { setHistoryStatus('ABSENT'); setActiveTab('student-history'); }} />
             <StatCard
               label="Leave requests"
               value={pending}
@@ -242,9 +251,9 @@ export const StudentPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab }
                     <ProgressBar value={c.percentage} />
                   </div>
                   <p className="mt-3 text-xs text-slate-500">
-                    {c.attended} of {c.total} attended
+                    {c.attended} of {c.total} periods attended
                     {c.isDefaulter && (
-                      <span className="text-rose-600 font-semibold"> · needs {neededFor75(c.attended, c.total)} in a row</span>
+                      <span className="text-rose-600 font-semibold"> · needs {neededFor75(c.attended, c.total)} periods in a row</span>
                     )}
                   </p>
                 </Card>
@@ -285,6 +294,7 @@ export const StudentPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab }
                       <TableCell>Date</TableCell>
                       <TableCell>Course</TableCell>
                       <TableCell>Lecture</TableCell>
+                      <TableCell align="center">Periods</TableCell>
                       <TableCell>Status</TableCell>
                       <TableCell>Remark</TableCell>
                     </TableRow>
@@ -293,8 +303,9 @@ export const StudentPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab }
                     {history.map((h) => (
                       <TableRow key={h.sessionId} className={h.status === 'ABSENT' ? 'bg-rose-50/40' : ''}>
                         <TableCell className="text-slate-600 whitespace-nowrap">{formatDate(h.lectureDate)}</TableCell>
-                        <TableCell className="text-slate-600">{h.courseCode}</TableCell>
+                        <TableCell className="text-slate-600 whitespace-nowrap">{h.courseCode}{h.isLab && ' · Lab'}</TableCell>
                         <TableCell className="font-semibold text-slate-800">{lectureName(h)}</TableCell>
+                        <TableCell align="center" className="text-slate-600">{h.periods}</TableCell>
                         <TableCell><StatusBadge status={h.status} /></TableCell>
                         <TableCell className="text-slate-500">{h.remarks || '—'}</TableCell>
                       </TableRow>
@@ -339,7 +350,11 @@ export const StudentPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab }
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="font-semibold text-slate-800">{LEAVE_TYPES[l.leaveType].label} leave</h3>
                           <LeaveStatusBadge status={l.status} />
-                          {l.documentUrl && <Badge icon={Paperclip}>Proof attached</Badge>}
+                          {l.documentUrl?.startsWith('/api/files/') && (
+                            <a href={l.documentUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:underline">
+                              <Paperclip className="w-3.5 h-3.5" /> Proof
+                            </a>
+                          )}
                         </div>
                         <p className="text-sm text-slate-500 mt-0.5">
                           {formatDate(l.startDate)}
@@ -361,6 +376,10 @@ export const StudentPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab }
         </>
       )}
 
+      {activeTab === 'student-marks' && <StudentMarksTab />}
+      {activeTab === 'student-assignments' && <StudentAssignmentsTab notify={setNotice} />}
+      {activeTab === 'student-schedule' && <ScheduleTab description="Your exams, holidays and college events." />}
+
       {/* Apply for leave */}
       <Modal
         open={applyOpen}
@@ -373,7 +392,7 @@ export const StudentPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab }
             <Button variant="ghost" onClick={() => setApplyOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" icon={Send} type="submit" form="leave-form" loading={submitting} disabled={!!dateError || !reason.trim()}>
+            <Button variant="primary" icon={Send} type="submit" form="leave-form" loading={submitting} disabled={!!dateError || !reason.trim() || uploading}>
               Send to HOD
             </Button>
           </>
@@ -422,19 +441,50 @@ export const StudentPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab }
             slotProps={{ htmlInput: { maxLength: 500 } }}
           />
           <div>
-            <MuiButton component="label" variant="outlined" color="inherit" startIcon={<Paperclip size={16} />} sx={{ borderColor: 'divider' }}>
-              {fileName ? 'Change proof' : 'Attach proof (optional)'}
+            <MuiButton
+              component="label"
+              variant="outlined"
+              color="inherit"
+              loading={uploading}
+              loadingPosition="start"
+              startIcon={<Paperclip size={16} />}
+              sx={{ borderColor: 'divider' }}
+            >
+              {proof ? 'Change proof' : 'Attach proof (optional)'}
               <input
                 id="leave-file"
                 type="file"
                 hidden
-                accept=".pdf,image/*"
-                onChange={(e) => setFileName(e.target.files?.[0]?.name ?? '')}
+                accept=".pdf,.png,.jpg,.jpeg"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  if (!file) return;
+                  setUploadError(null);
+                  setUploading(true);
+                  try {
+                    const form = new FormData();
+                    form.append('file', file);
+                    form.append('purpose', 'LEAVE_PROOF');
+                    const res = await fetch('/api/files', { method: 'POST', body: form });
+                    const data = await res.json();
+                    if (res.ok) setProof({ id: data.file.id, name: data.file.filename });
+                    else setUploadError(data.error || 'Upload failed.');
+                  } finally {
+                    setUploading(false);
+                  }
+                }}
               />
             </MuiButton>
-            <p className="mt-1.5 text-2xs text-slate-500">
-              {fileName ? <><strong className="text-slate-700">{fileName}</strong> · </> : null}
-              Only the file name is recorded for now; file storage isn&apos;t set up yet.
+            <p className={`mt-1.5 text-2xs ${uploadError ? 'text-rose-600' : 'text-slate-500'}`}>
+              {uploadError ??
+                (proof ? (
+                  <>
+                    <strong className="text-slate-700">{proof.name}</strong> uploaded · only you and your HOD can see it
+                  </>
+                ) : (
+                  'PDF, PNG or JPG, up to 4 MB.'
+                ))}
             </p>
           </div>
         </form>
