@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { dbService } from '@/lib/db-service';
+import { AuthError, dbService } from '@/lib/db-service';
 import {
   SESSION_COOKIE,
   createSessionToken,
@@ -25,6 +25,9 @@ export async function POST(request: Request) {
     response.cookies.set(SESSION_COOKIE, createSessionToken(user.id), sessionCookieOptions);
     return response;
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message }, { status: 401 });
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: 401 });
+    // Database or config failure: log it, but don't show internals to the browser.
+    console.error('Login failed:', error);
+    return NextResponse.json({ error: 'Sign-in is unavailable right now. Please try again in a minute.' }, { status: 503 });
   }
 }

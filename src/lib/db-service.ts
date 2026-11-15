@@ -31,6 +31,9 @@ import {
 import { connectToDatabase } from './mongodb';
 import { hashPassword, verifyPassword } from './password';
 
+/** Wrong credentials or a disabled account: safe to show the user. */
+export class AuthError extends Error {}
+
 /*
  * Data access for the whole app, backed by MongoDB. Every method connects
  * (cached) first, so route handlers just call dbService.
@@ -111,10 +114,10 @@ export const dbService = {
     const user = await this.getUserByEmail(email);
     // Password checked before active status → errors don't reveal which accounts exist.
     if (!user || !password || !verifyPassword(password, user.password)) {
-      throw new Error('Invalid email or password.');
+      throw new AuthError('Invalid email or password.');
     }
     if (!user.isActive) {
-      throw new Error('This user account has been deactivated. Please contact your administrator.');
+      throw new AuthError('This user account has been deactivated. Please contact your administrator.');
     }
     await this.addSystemAudit({
       userId: user.id,
