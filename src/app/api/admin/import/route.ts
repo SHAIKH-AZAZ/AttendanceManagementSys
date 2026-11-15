@@ -98,7 +98,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `Roster import committed successfully into ${targetSection.name}.`,
+      message: `Imported ${commitResult.successfullyImported} students into ${targetSection.name}. ${commitResult.accounts.length} new logins created${commitResult.withoutLogin ? `; ${commitResult.withoutLogin} without an email have no login` : ''}.`,
+      // Temporary passwords are returned only in this response; they are stored hashed.
+      accounts: commitResult.accounts,
       summary: {
         totalRecords: validationReport.totalRecords,
         successfullyImported: commitResult.successfullyImported,

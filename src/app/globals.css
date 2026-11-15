@@ -168,8 +168,20 @@ input:-webkit-autofill:focus {
     background: #fff !important;
     overflow: visible !important;
   }
-  .report-dialog tr {
+  /* Scroll containers stop Chrome from keeping table rows whole across pages. */
+  .report-dialog .overflow-x-auto {
+    overflow: visible !important;
+  }
+  .report-dialog .MuiDialog-container,
+  .report-dialog .MuiDialog-paper,
+  .report-dialog .MuiDialog-paper > div {
+    display: block !important;
+    overflow: visible !important;
+  }
+  .report-dialog tr,
+  .report-dialog td {
     break-inside: avoid;
+    page-break-inside: avoid;
   }
   body > *:not(.report-dialog) {
     display: none !important;

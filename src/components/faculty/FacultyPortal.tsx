@@ -3,7 +3,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useMeta, type MetaSection } from '@/hooks/useMeta';
+import { MarksTab } from './MarksTab';
+import { AssignmentsTab } from './AssignmentsTab';
+import { ScheduleTab } from '@/components/schedule/ScheduleTab';
 import type { PortalProps } from '@/lib/navigation';
+import { ATTENDANCE_ENTRY_WINDOW_DAYS, daysBefore, todayIST } from '@/lib/rules';
 import type { AttendanceRecord, AttendanceStatus, LectureSession, StudentComplianceStats } from '@/types';
 import {
   ATTENDANCE_ORDER,
@@ -53,7 +57,7 @@ import {
   XCircle,
 } from 'lucide-react';
 
-const today = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD, local time
+const today = todayIST; // YYYY-MM-DD in India
 const pct = (s: LectureSession) =>
   s.summary.totalStudents ? Math.round((s.summary.presentCount / s.summary.totalStudents) * 100) : 0;
 
@@ -77,6 +81,7 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
   const [statusFilter, setStatusFilter] = useState<AttendanceStatus | 'ALL'>('ALL');
   const [newDate, setNewDate] = useState(today());
   const [newTitle, setNewTitle] = useState('');
+  const [newPeriods, setNewPeriods] = useState('1');
 
   // Sessions tab filters
   const [sessionsClass, setSessionsClass] = useState<string>('ALL');
@@ -157,6 +162,7 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
       }
       setNewDate(today());
       setNewTitle('');
+      setNewPeriods(String(section(sid)?.defaultPeriods ?? 1));
       setActiveTab('faculty-attendance');
     });
 
@@ -166,7 +172,7 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
       const res = await fetch('/api/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sectionId, lectureDate: newDate, sessionTitle: newTitle }),
+        body: JSON.stringify({ sectionId, lectureDate: newDate, sessionTitle: newTitle, periods: Number(newPeriods) }),
       });
       const data = await res.json();
       await loadSessions();
@@ -330,7 +336,9 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
                     {draft ? <Badge tone="warn" icon={FileClock}>Draft open</Badge> : null}
                   </div>
                   <h3 className="mt-3 text-base font-semibold text-slate-800">{c?.title}</h3>
-                  <p className="text-sm text-slate-500">{s.name}</p>
+                  <p className="text-sm text-slate-500">
+                    {s.name} · {s.kind === 'LAB' ? `Lab, ${s.defaultPeriods ?? 2} periods` : 'Theory'}
+                  </p>
                   <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
                     {[
                       ['Students', s.studentCount],
@@ -374,7 +382,7 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
             title="Take attendance"
             description="Start a lecture, mark the exceptions, then submit. Submitted lectures are locked."
             actions={
-              <SelectField ariaLabel="Class" value={sectionId} onChange={goTakeAttendance} minWidth={256} options={mySections.map((s) => ({ value: s.id, label: classLabel(s.id) }))} />
+              <SelectField label="Subject · class" fullWidth={false} value={sectionId} onChange={goTakeAttendance} minWidth={320} options={mySections.map((s) => ({ value: s.id, label: classLabel(s.id) }))} />
             }
           />
 
@@ -393,14 +401,27 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
                     title="Start a new lecture"
                     description={`${classLabel(sectionId)} · ${currentSection?.studentCount ?? 0} students`}
                   />
-                  <div className="mt-5 grid sm:grid-cols-[10rem_1fr] gap-4">
+                  <div className="mt-5 grid sm:grid-cols-[10rem_8rem_1fr] gap-4">
                     <TextField
                       id="lec-date"
                       label="Date"
                       type="date"
                       value={newDate}
                       onChange={(e) => setNewDate(e.target.value)}
-                      slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: today() } }}
+                      helperText={`Up to ${ATTENDANCE_ENTRY_WINDOW_DAYS} days back`}
+                      slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: today(), min: daysBefore(today(), ATTENDANCE_ENTRY_WINDOW_DAYS) } }}
+                    />
+                    <SelectField
+                      id="lec-periods"
+                      label="Periods"
+                      value={newPeriods}
+                      onChange={setNewPeriods}
+                      helperText={currentSection?.kind === 'LAB' ? 'Lab: usually 2' : 'Lab = 2'}
+                      options={[
+                        { value: '1', label: '1 period' },
+                        { value: '2', label: '2 periods' },
+                        { value: '3', label: '3 periods' },
+                      ]}
                     />
                     <TextField
                       id="lec-title"
@@ -439,6 +460,7 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
                     ) : (
                       <Badge tone="warn" icon={FileClock}>Draft</Badge>
                     )}
+                    <Badge>{openSession.periods} {openSession.periods === 1 ? 'period' : 'periods'}</Badge>
                     {dirty && <Badge tone="accent">Unsaved changes</Badge>}
                   </div>
                   <p className="text-sm text-slate-500 mt-0.5">
@@ -610,10 +632,10 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
           <Card padded={false}>
             <div className="p-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200">
               <SelectField
-                ariaLabel="Class"
+                label="Subject · class" fullWidth={false}
                 value={sessionsClass}
                 onChange={setSessionsClass}
-                minWidth={220}
+                minWidth={320}
                 options={[{ value: 'ALL', label: 'All classes' }, ...mySections.map((s) => ({ value: s.id, label: classLabel(s.id) }))]}
               />
               <SegmentedControl
@@ -649,6 +671,7 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
                         <TableCell>Date</TableCell>
                         <TableCell>Class</TableCell>
                         <TableCell>Lecture</TableCell>
+                        <TableCell align="center">Periods</TableCell>
                         <TableCell>Present</TableCell>
                         <TableCell>State</TableCell>
                         <TableCell />
@@ -658,10 +681,11 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
                       {rows.map((s) => (
                         <TableRow key={s.id} className="hover:bg-slate-50">
                           <TableCell className="text-slate-600 whitespace-nowrap">{formatDate(s.lectureDate)}</TableCell>
-                          <TableCell className="text-slate-600 whitespace-nowrap">{classLabel(s.sectionId)}</TableCell>
+                          <TableCell className="text-slate-600 min-w-56">{classLabel(s.sectionId)}</TableCell>
                           <TableCell className="font-semibold text-slate-800">
                             {lectureName(s)}
                           </TableCell>
+                          <TableCell align="center" className="text-slate-600">{s.periods ?? 1}</TableCell>
                           <TableCell className="text-slate-600 whitespace-nowrap">
                             {s.summary.presentCount}/{s.summary.totalStudents} <span className="text-slate-400">({pct(s)}%)</span>
                           </TableCell>
@@ -702,10 +726,10 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
             actions={
               <>
                 <SelectField
-                  ariaLabel="Class"
+                  label="Subject · class" fullWidth={false}
                   value={defaultersClassId}
                   onChange={setDefaultersClassId}
-                  minWidth={220}
+                  minWidth={320}
                   options={mySections.map((s) => ({ value: s.id, label: classLabel(s.id) }))}
                 />
                 {section(defaultersClassId) && (
@@ -759,7 +783,7 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
                             <TableCell className="font-mono text-xs text-slate-600">{s.enrollmentNumber}</TableCell>
                             <TableCell className="font-semibold text-slate-800">{s.fullName}</TableCell>
                             <TableCell className="text-slate-600">
-                              {s.attendedLectures}/{s.totalLectures}
+                              {s.attendedPeriods}/{s.totalPeriods}
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-3">
@@ -768,7 +792,7 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
                               </div>
                             </TableCell>
                             <TableCell className="text-slate-600">
-                              {s.isDefaulter ? `${s.neededFor75} lectures in a row` : <span className="text-emerald-700">On track</span>}
+                              {s.isDefaulter ? `${s.neededFor75} periods in a row` : <span className="text-emerald-700">On track</span>}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -781,6 +805,10 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
           })()}
         </>
       )}
+
+      {activeTab === 'faculty-marks' && <MarksTab sections={mySections} classLabel={classLabel} notify={setNotice} />}
+      {activeTab === 'faculty-assignments' && <AssignmentsTab sections={mySections} classLabel={classLabel} notify={setNotice} />}
+      {activeTab === 'faculty-schedule' && <ScheduleTab description="Exams for the subjects you teach, holidays and college events." />}
 
       {/* Lock confirmation */}
       <Modal

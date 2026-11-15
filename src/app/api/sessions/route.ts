@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { dbService } from '@/lib/db-service';
 import { requireUser } from '@/lib/auth';
+import { holidayOn } from '@/lib/services/schedule';
+import { ATTENDANCE_ENTRY_WINDOW_DAYS, daysBefore, todayIST } from '@/lib/rules';
 
 export async function GET(request: Request) {
   const auth = await requireUser('FACULTY', 'HOD', 'ADMIN_STAFF');
@@ -37,8 +39,11 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const auth = await requireUser('FACULTY');
   if (auth instanceof NextResponse) return auth;
+  let sectionId: string | undefined;
   try {
-    const { sectionId, lectureDate, sessionTitle } = await request.json();
+    const body = await request.json();
+    sectionId = body.sectionId;
+    const { lectureDate, sessionTitle, periods: rawPeriods } = body;
 
     if (typeof sectionId !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(lectureDate ?? '')) {
       return NextResponse.json(
@@ -54,6 +59,28 @@ export async function POST(request: Request) {
     }
     if (section.facultyId !== auth.id) {
       return NextResponse.json({ error: 'You do not teach this class.' }, { status: 403 });
+    }
+
+    // Periods this lecture covered (2-hour lab = 2). Default comes from the class.
+    const periods = rawPeriods === undefined ? section.defaultPeriods ?? 1 : Number(rawPeriods);
+    if (!Number.isInteger(periods) || periods < 1 || periods > 3) {
+      return NextResponse.json({ error: 'Periods must be 1, 2 or 3.' }, { status: 400 });
+    }
+
+    const today = todayIST();
+    if (lectureDate > today) {
+      return NextResponse.json({ error: "A lecture can't be entered for a future date." }, { status: 400 });
+    }
+    if (lectureDate < daysBefore(today, ATTENDANCE_ENTRY_WINDOW_DAYS)) {
+      return NextResponse.json(
+        { error: `Lectures can be entered at most ${ATTENDANCE_ENTRY_WINDOW_DAYS} days late. Ask your HOD to add older lectures.` },
+        { status: 400 }
+      );
+    }
+
+    const holiday = await holidayOn(lectureDate);
+    if (holiday) {
+      return NextResponse.json({ error: `${lectureDate} is a holiday (${holiday.title}). No lectures can be entered for it.` }, { status: 400 });
     }
 
     const existing = await dbService.getSessions({ sectionId });
@@ -78,10 +105,17 @@ export async function POST(request: Request) {
       lectureDate,
       sessionNumber,
       sessionTitle: title || `Lecture ${sessionNumber}`,
+      periods,
     });
 
     return NextResponse.json({ session }, { status: 201 });
   } catch (error) {
+    // Two requests can race past the draft check above; the database's
+    // one-draft-per-class index rejects the loser. Answer it like the check would.
+    if ((error as Error).message.startsWith('Finish or submit the open draft')) {
+      const draft = sectionId ? (await dbService.getSessions({ sectionId, isLocked: false }))[0] : undefined;
+      return NextResponse.json({ error: (error as Error).message, draftId: draft?.id }, { status: 409 });
+    }
     return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
 }

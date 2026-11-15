@@ -62,6 +62,14 @@ export interface Section {
   courseId: string;
   name: string;
   facultyId: string;
+  /** THEORY = whole division; LAB = a batch (e.g. A1) taught in 2-period lab slots. */
+  kind?: 'THEORY' | 'LAB';
+  /** Periods a lecture of this class normally covers; pre-fills "Start lecture". */
+  defaultPeriods?: number;
+  /** Division(s) this class belongs to, e.g. ["5CEA"]; two for a combined class. */
+  divisions?: string[];
+  /** Lab batch within the division, e.g. "A1". */
+  batch?: string;
   enrolledStudents: EnrolledStudent[];
 }
 
@@ -121,6 +129,8 @@ export interface LectureSession {
   lectureDate: string; // YYYY-MM-DD
   sessionNumber: number;
   sessionTitle: string;
+  /** Timetable periods this lecture covered (a 2-hour lab = 2). Attendance % is weighted by it. */
+  periods: number;
   isLocked: boolean;
   submittedAt?: string;
   submittedBy?: string;
@@ -194,9 +204,135 @@ export interface StudentComplianceStats {
   courseId: string;
   courseCode: string;
   courseTitle: string;
-  totalLectures: number;
-  attendedLectures: number;
+  /** Counted in timetable periods, not lectures (a 2-period lab adds 2). */
+  totalPeriods: number;
+  attendedPeriods: number;
   percentage: number;
   isDefaulter: boolean;
   neededFor75: number;
+}
+
+export interface AppNotification {
+  id: string;
+  userId: string;
+  title: string;
+  body: string;
+  /** Portal tab to open when clicked, e.g. "student-marks". */
+  tab?: string;
+  createdAt: string;
+  readAt?: string;
+}
+
+export type FilePurpose = 'LEAVE_PROOF' | 'ASSIGNMENT' | 'SUBMISSION';
+
+export interface StoredFile {
+  id: string;
+  filename: string;
+  contentType: string;
+  size: number;
+  ownerId: string;
+  purpose: FilePurpose;
+  uploadedAt: string;
+}
+
+export type AssessmentStatus = 'DRAFT' | 'SUBMITTED' | 'PUBLISHED';
+
+export interface MarkEntry {
+  studentId: string;
+  enrollmentNumber: string;
+  studentName: string;
+  /** null = not entered yet. */
+  marks: number | null;
+  absent: boolean;
+  remark?: string;
+}
+
+/** One exam, test or viva for one class, with every student's marks. */
+export interface Assessment {
+  id: string;
+  sectionId: string;
+  courseId: string;
+  departmentId: string;
+  title: string;
+  /** Free label, e.g. "Mid-semester exam", "Viva". */
+  component: string;
+  date: string; // YYYY-MM-DD
+  maxMarks: number;
+  status: AssessmentStatus;
+  createdBy: string;
+  createdAt: string;
+  submittedAt?: string;
+  reviewedBy?: string;
+  /** HOD's note when returning marks for changes. */
+  reviewComment?: string;
+  publishedAt?: string;
+  entries: MarkEntry[];
+}
+
+/** Homework published by a teacher for one class. */
+export interface Assignment {
+  id: string;
+  sectionId: string;
+  courseId: string;
+  departmentId: string;
+  title: string;
+  instructions: string;
+  /** Deadline, ISO date-time. */
+  dueAt: string;
+  /** Optional; ungraded assignments have none. */
+  maxMarks: number | null;
+  allowLate: boolean;
+  /** Uploaded file ids (purpose ASSIGNMENT). */
+  attachments: string[];
+  publishedBy: string;
+  publishedAt: string;
+}
+
+export interface Submission {
+  id: string;
+  assignmentId: string;
+  studentId: string;
+  studentName: string;
+  enrollmentNumber: string;
+  text?: string;
+  /** Uploaded file ids (purpose SUBMISSION). */
+  files: string[];
+  submittedAt: string;
+  isLate: boolean;
+  marks?: number | null;
+  feedback?: string;
+  gradedBy?: string;
+  gradedAt?: string;
+}
+
+export type ExamType = 'MID_SEM' | 'UNIT_TEST' | 'PRACTICAL' | 'VIVA' | 'GTU_EXTERNAL' | 'OTHER';
+
+/** One exam sitting for one subject and one or more divisions. */
+export interface ExamSlot {
+  id: string;
+  courseId: string;
+  divisions: string[];
+  examType: ExamType;
+  date: string; // YYYY-MM-DD
+  start: string; // HH:MM, India time
+  end: string; // HH:MM
+  room: string;
+  note?: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export type EventKind = 'HOLIDAY' | 'EVENT' | 'DEADLINE';
+
+/** Academic calendar entry. Holidays block starting lectures on those days. */
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  kind: EventKind;
+  date: string;
+  endDate?: string;
+  audience: 'ALL' | 'STUDENTS' | 'STAFF';
+  note?: string;
+  createdBy: string;
+  createdAt: string;
 }

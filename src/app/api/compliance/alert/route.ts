@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     }
 
     // Log the notification to audit logs
-    dbService.addSystemAudit({
+    await dbService.addSystemAudit({
       userId: 'system-mailer',
       userName: 'Compliance Notification Worker',
       action: 'EMAIL_ALERT_DISPATCHED',

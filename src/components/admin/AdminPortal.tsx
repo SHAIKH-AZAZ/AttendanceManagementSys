@@ -25,6 +25,8 @@ import {
   SearchField,
 } from '@/components/ui';
 import {
+  LayoutGrid,
+  Download,
   AlertTriangle,
   Award,
   BookOpen,
@@ -39,6 +41,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import { UserManagementTab } from './UserManagementTab';
+import { AddClassDialog, AddSubjectDialog } from './StructureDialogs';
+import { ScheduleAdminTab } from './ScheduleAdminTab';
 
 interface ImportPreview {
   totalRecords: number;
@@ -76,7 +80,10 @@ const ROLE_LABEL: Record<UserRole, string> = {
 };
 
 export const AdminPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, onOpenUniversityReport }) => {
-  const { meta, course, classLabel } = useMeta();
+  const { meta, course, classLabel, reload } = useMeta();
+  const [addSubjectOpen, setAddSubjectOpen] = useState(false);
+  const [addClassOpen, setAddClassOpen] = useState(false);
+  const [newLogins, setNewLogins] = useState<{ enrollmentNumber: string; fullName: string; email: string; tempPassword: string }[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [auditLogs, setAuditLogs] = useState<SystemAuditLog[]>([]);
   const { notice, setNotice } = useTabNotice(activeTab);
@@ -127,9 +134,11 @@ export const AdminPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, on
         setPreview(data);
       } else {
         setNotice({ tone: 'success', text: data.message || 'Students imported.' });
+        setNewLogins(data.accounts ?? []);
         setImportText('');
         setPreview(null);
         load();
+        reload();
       }
     } finally {
       setImporting(false);
@@ -229,7 +238,42 @@ export const AdminPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, on
       {/* ------------------------------------------------- Academic structure */}
       {activeTab === 'admin-structure' && (
         <>
-          <PageHeader title="Academic structure" description="Campuses, departments, courses and the classes taught this term." />
+          <PageHeader
+            title="Academic structure"
+            description="Campuses, departments, subjects and the classes taught this semester."
+            actions={
+              meta && (
+                <>
+                  <Button icon={BookOpen} onClick={() => setAddSubjectOpen(true)}>Add subject</Button>
+                  <Button variant="primary" icon={LayoutGrid} disabled={!meta.courses.length} onClick={() => setAddClassOpen(true)}>
+                    Add class
+                  </Button>
+                </>
+              )
+            }
+          />
+          {meta && (
+            <>
+              <AddSubjectDialog
+                open={addSubjectOpen}
+                onClose={() => setAddSubjectOpen(false)}
+                meta={meta}
+                onDone={(m) => {
+                  setNotice({ tone: 'success', text: m });
+                  reload();
+                }}
+              />
+              <AddClassDialog
+                open={addClassOpen}
+                onClose={() => setAddClassOpen(false)}
+                meta={meta}
+                onDone={(m) => {
+                  setNotice({ tone: 'success', text: m });
+                  reload();
+                }}
+              />
+            </>
+          )}
           {!meta ? (
             <Card><p className="text-sm text-slate-500">Loading…</p></Card>
           ) : (
@@ -291,6 +335,8 @@ export const AdminPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, on
           )}
         </>
       )}
+
+      {activeTab === 'admin-schedule' && meta && <ScheduleAdminTab meta={meta} notify={setNotice} />}
 
       {/* ---------------------------------------------------------- Bulk import */}
       {activeTab === 'admin-import' && (
@@ -382,6 +428,54 @@ export const AdminPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, on
               )}
             </Card>
           </div>
+          {newLogins.length > 0 && (
+            <Card className="mt-5">
+              <CardHeader
+                title={`${newLogins.length} new student logins`}
+                description="Temporary passwords are shown only now and stored encrypted. Download them and give each student theirs privately."
+                actions={
+                  <>
+                    <Button
+                      icon={Download}
+                      onClick={() => {
+                        const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+                        const csv = ['Roll number,Name,Email,Temporary password', ...newLogins.map((a) => [a.enrollmentNumber, a.fullName, a.email, a.tempPassword].map(esc).join(','))].join('\n');
+                        const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+                        const link = Object.assign(document.createElement('a'), { href: url, download: 'new-student-logins.csv' });
+                        link.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                    >
+                      Download CSV
+                    </Button>
+                    <Button variant="ghost" onClick={() => setNewLogins([])}>Done</Button>
+                  </>
+                }
+              />
+              <TableContainer className="mt-4">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Roll no.</TableCell>
+                      <TableCell>Name</TableCell>
+                      <TableCell>Email (login)</TableCell>
+                      <TableCell>Temporary password</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {newLogins.map((a) => (
+                      <TableRow key={a.email}>
+                        <TableCell className="font-mono text-xs">{a.enrollmentNumber}</TableCell>
+                        <TableCell>{a.fullName}</TableCell>
+                        <TableCell>{a.email}</TableCell>
+                        <TableCell className="font-mono">{a.tempPassword}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Card>
+          )}
         </>
       )}
 

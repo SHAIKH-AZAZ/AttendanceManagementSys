@@ -1,276 +1,263 @@
-import {
-  Campus,
-  Department,
-  Trimester,
-  Course,
-  Section,
-  User,
-  LectureSession,
+import { randomBytes } from 'node:crypto';
+import mongoose, { type ClientSession } from 'mongoose';
+import type {
   AttendanceRecord,
-  LeaveApplication,
-  AttendanceAudit,
-  SystemAuditLog,
-  ComplianceThreshold,
-  StudentComplianceStats,
+  AttendanceStatus,
+  Campus,
+  Course,
+  Department,
   EnrolledStudent,
+  LeaveApplication,
+  LectureSession,
+  Section,
+  StudentComplianceStats,
+  SystemAuditLog,
+  Trimester,
+  User,
+  UserRole,
 } from '@/types';
 import {
-  INITIAL_CAMPUSES,
-  INITIAL_DEPARTMENTS,
-  INITIAL_TRIMESTERS,
-  INITIAL_COURSES,
-  INITIAL_SECTIONS,
-  INITIAL_USERS,
-  INITIAL_SESSIONS,
-  INITIAL_LEAVES,
-  INITIAL_AUDIT_LOGS,
-  INITIAL_THRESHOLDS,
-  ROSTER_STUDENTS,
-} from './seed-data';
+  AttendanceAuditModel,
+  CampusModel,
+  CourseModel,
+  DepartmentModel,
+  LeaveApplicationModel,
+  LectureSessionModel,
+  SectionModel,
+  SystemAuditLogModel,
+  TrimesterModel,
+  UserModel,
+} from '@/models';
+import { connectToDatabase } from './mongodb';
 import { hashPassword, verifyPassword } from './password';
 
-// Reactive in-memory state (resilient fallback when MongoDB connection is establishing or offline)
-class DatabaseState {
-  campuses: Campus[] = [...INITIAL_CAMPUSES];
-  departments: Department[] = [...INITIAL_DEPARTMENTS];
-  trimesters: Trimester[] = [...INITIAL_TRIMESTERS];
-  courses: Course[] = [...INITIAL_COURSES];
-  sections: Section[] = [...INITIAL_SECTIONS];
-  // Seed passwords are plaintext in seed-data; only hashes live in state.
-  users: User[] = INITIAL_USERS.map((u) => ({
-    ...u,
-    password: u.password ? hashPassword(u.password) : undefined,
-  }));
-  sessions: LectureSession[] = JSON.parse(JSON.stringify(INITIAL_SESSIONS));
-  leaves: LeaveApplication[] = JSON.parse(JSON.stringify(INITIAL_LEAVES));
-  audits: AttendanceAudit[] = [];
-  systemAuditLogs: SystemAuditLog[] = [...INITIAL_AUDIT_LOGS];
-  thresholds: ComplianceThreshold[] = [...INITIAL_THRESHOLDS];
-}
-
-// Global persistence across Next.js dev server hot-reloads
-declare global {
-  // eslint-disable-next-line no-var
-  var __attendease_db_state_v5: DatabaseState | undefined;
-}
-
-const state: DatabaseState =
-  global.__attendease_db_state_v5 || new DatabaseState();
-
-if (!global.__attendease_db_state_v5) {
-  global.__attendease_db_state_v5 = state;
-}
+/*
+ * Data access for the whole app, backed by MongoDB. Every method connects
+ * (cached) first, so route handlers just call dbService.
+ */
 
 type Actor = { id: string; fullName: string };
 const SYSTEM: Actor = { id: 'system', fullName: 'System' };
-const nameOf = (id: string) => state.users.find((u) => u.id === id)?.fullName ?? id;
+
+const db = connectToDatabase;
+
+/** Lean Mongo document → app object (`_id` becomes `id`). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function out<T>(doc: any): T {
+  const { _id, ...rest } = doc;
+  return { id: _id, ...rest } as T;
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const outAll = <T>(docs: any[]) => docs.map((d) => out<T>(d));
+
+/** Readable unique id, e.g. "leave-mhz8k2-3f9a1c". */
+const newId = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${randomBytes(3).toString('hex')}`;
+
+const isDuplicateKey = (err: unknown) => (err as { code?: number })?.code === 11000;
+
+const ATTENDED: AttendanceStatus[] = ['PRESENT', 'LATE', 'EXCUSED', 'MEDICAL_LEAVE', 'ON_DUTY'];
+
+async function nameOf(id: string): Promise<string> {
+  const u = await UserModel.findById(id, { fullName: 1 }).lean();
+  return u?.fullName ?? id;
+}
 
 export const dbService = {
-  // --- Metas ---
+  // --- Academic structure ---
   async getCampuses(): Promise<Campus[]> {
-    return state.campuses;
+    await db();
+    return outAll<Campus>(await CampusModel.find().lean());
   },
 
   async getDepartments(campusId?: string): Promise<Department[]> {
-    if (campusId) {
-      return state.departments.filter((d) => d.campusId === campusId);
-    }
-    return state.departments;
+    await db();
+    return outAll<Department>(await DepartmentModel.find(campusId ? { campusId } : {}).lean());
   },
 
   async getTrimesters(): Promise<Trimester[]> {
-    return state.trimesters;
+    await db();
+    return outAll<Trimester>(await TrimesterModel.find().lean());
   },
 
   async getCourses(deptId?: string): Promise<Course[]> {
-    if (deptId) {
-      return state.courses.filter((c) => c.departmentId === deptId);
-    }
-    return state.courses;
+    await db();
+    return outAll<Course>(await CourseModel.find(deptId ? { departmentId: deptId } : {}).lean());
   },
 
   async getSections(courseId?: string): Promise<Section[]> {
-    if (courseId) {
-      return state.sections.filter((s) => s.courseId === courseId);
-    }
-    return state.sections;
+    await db();
+    return outAll<Section>(await SectionModel.find(courseId ? { courseId } : {}).lean());
   },
 
+  // --- Users ---
   async getUsers(): Promise<User[]> {
-    return state.users;
+    await db();
+    return outAll<User>(await UserModel.find().lean());
   },
 
   async getUserById(id: string): Promise<User | undefined> {
-    return state.users.find((u) => u.id === id);
+    await db();
+    const u = await UserModel.findById(id).lean();
+    return u ? out<User>(u) : undefined;
   },
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    return state.users.find(
-      (u) => u.email.toLowerCase() === email.trim().toLowerCase()
-    );
+    await db();
+    const u = await UserModel.findOne({ email: email.trim().toLowerCase() }).lean();
+    return u ? out<User>(u) : undefined;
   },
 
-  async authenticate(
-    email: string,
-    password?: string
-  ): Promise<User> {
+  async authenticate(email: string, password?: string): Promise<User> {
     const user = await this.getUserByEmail(email);
     // Password checked before active status → errors don't reveal which accounts exist.
     if (!user || !password || !verifyPassword(password, user.password)) {
       throw new Error('Invalid email or password.');
     }
-
     if (!user.isActive) {
       throw new Error('This user account has been deactivated. Please contact your administrator.');
     }
-
-    this.addSystemAudit({
+    await this.addSystemAudit({
       userId: user.id,
       userName: user.fullName,
       action: 'USER_LOGIN',
       entityName: 'User',
       entityId: user.id,
-      details: `Signed in as ${user.role.replace("_", " ").toLowerCase()}.`,
+      details: `Signed in as ${user.role.replace('_', ' ').toLowerCase()}.`,
     });
-
     return user;
   },
 
-  async createUser(data: {
-    email: string;
-    fullName: string;
-    role: import('@/types').UserRole;
-    campusId: string;
-    departmentId?: string;
-    password?: string;
-    employeeCode?: string;
-    enrollmentNumber?: string;
-    academicYear?: string;
-  }, actor: Actor = SYSTEM): Promise<User> {
-    const existing = await this.getUserByEmail(data.email);
-    if (existing) {
-      throw new Error('A user with this email address already exists.');
-    }
-
-    const userId = `user-${Date.now()}`;
+  async createUser(
+    data: {
+      email: string;
+      fullName: string;
+      role: UserRole;
+      campusId: string;
+      departmentId?: string;
+      password?: string;
+      employeeCode?: string;
+      enrollmentNumber?: string;
+      academicYear?: string;
+    },
+    actor: Actor = SYSTEM
+  ): Promise<User> {
+    await db();
+    const id = newId('user');
     const newUser: User = {
-      id: userId,
-      ssoId: `sso_${userId}`,
+      id,
+      ssoId: `sso_${id}`,
       email: data.email.trim().toLowerCase(),
       fullName: data.fullName.trim(),
       role: data.role,
       campusId: data.campusId,
       departmentId: data.departmentId,
       isActive: true,
-      password: hashPassword(data.password || 'welcome123'),
+      password: hashPassword(data.password || randomBytes(12).toString('base64url')),
       createdAt: new Date().toISOString(),
       studentProfile:
         data.role === 'STUDENT'
           ? {
-              enrollmentNumber:
-                data.enrollmentNumber ||
-                `CS-2026-${Math.floor(100 + Math.random() * 900)}`,
-              academicYear: data.academicYear || '2026-2027',
-              enrolledSections: ['sec-ds-a'],
+              enrollmentNumber: data.enrollmentNumber || `STU-${randomBytes(3).toString('hex').toUpperCase()}`,
+              academicYear: data.academicYear || '2026-27',
+              enrolledSections: [],
             }
           : undefined,
       facultyProfile:
-        data.role === 'FACULTY'
+        data.role === 'FACULTY' || data.role === 'HOD'
           ? {
-              employeeCode:
-                data.employeeCode ||
-                `FAC-${Math.floor(100 + Math.random() * 900)}`,
-              designation: 'Assistant Professor',
-              assignedCourses: [{ courseId: 'course-ds', sectionId: 'sec-ds-a' }],
+              employeeCode: data.employeeCode || `FAC-${randomBytes(3).toString('hex').toUpperCase()}`,
+              designation: data.role === 'HOD' ? 'Head of Department' : 'Assistant Professor',
+              assignedCourses: [],
             }
           : undefined,
     };
-
-    state.users.push(newUser);
-
-    this.addSystemAudit({
+    try {
+      const { id: _id, ...rest } = newUser;
+      await UserModel.create({ _id, ...rest });
+    } catch (err) {
+      if (isDuplicateKey(err)) throw new Error('A user with this email address already exists.');
+      throw err;
+    }
+    await this.addSystemAudit({
       userId: actor.id,
       userName: actor.fullName,
       action: 'USER_CREATED',
       entityName: 'User',
-      entityId: newUser.id,
+      entityId: id,
       details: `Created new user ${newUser.fullName} (${newUser.role}, ${newUser.email})`,
     });
-
     return newUser;
   },
 
-  async updateUser(
-    id: string,
-    updates: Partial<Omit<User, 'id'>>,
-    actor: Actor = SYSTEM
-  ): Promise<User> {
-    const user = state.users.find((u) => u.id === id);
+  async updateUser(id: string, updates: Partial<Omit<User, 'id'>>, actor: Actor = SYSTEM): Promise<User> {
+    await db();
+    const user = await UserModel.findById(id).lean();
     if (!user) throw new Error('User not found.');
 
     // Whitelist: never let a request body overwrite id/ssoId/createdAt or store a raw password.
     const { fullName, email, role, campusId, departmentId, isActive, password } = updates;
-    if (email && email.trim().toLowerCase() !== user.email) {
-      const taken = await this.getUserByEmail(email);
-      if (taken) throw new Error('A user with this email address already exists.');
-      user.email = email.trim().toLowerCase();
-    }
-    if (fullName) user.fullName = fullName.trim();
-    if (role) user.role = role;
-    if (campusId) user.campusId = campusId;
-    if (departmentId !== undefined) user.departmentId = departmentId;
-    if (typeof isActive === 'boolean') user.isActive = isActive;
-    if (password) user.password = hashPassword(password);
+    const set: Record<string, unknown> = {};
+    if (email && email.trim().toLowerCase() !== user.email) set.email = email.trim().toLowerCase();
+    if (fullName) set.fullName = fullName.trim();
+    if (role) set.role = role;
+    if (campusId) set.campusId = campusId;
+    if (departmentId !== undefined) set.departmentId = departmentId;
+    if (typeof isActive === 'boolean') set.isActive = isActive;
+    if (password) set.password = hashPassword(password);
 
-    this.addSystemAudit({
+    let updated;
+    try {
+      updated = await UserModel.findByIdAndUpdate(id, { $set: set }, { new: true }).lean();
+    } catch (err) {
+      if (isDuplicateKey(err)) throw new Error('A user with this email address already exists.');
+      throw err;
+    }
+    await this.addSystemAudit({
       userId: actor.id,
       userName: actor.fullName,
       action: 'USER_UPDATED',
       entityName: 'User',
-      entityId: user.id,
-      details: `Updated details for ${user.fullName} (${user.email})`,
+      entityId: id,
+      details: `Updated details for ${updated!.fullName} (${updated!.email})`,
     });
-
-    return user;
+    return out<User>(updated);
   },
 
   async deleteUser(id: string, actor: Actor = SYSTEM): Promise<{ success: boolean }> {
-    const user = state.users.find((u) => u.id === id);
+    await db();
+    const user = await UserModel.findByIdAndUpdate(id, { $set: { isActive: false } }, { new: true }).lean();
     if (!user) throw new Error('User not found.');
-
-    user.isActive = false; // Soft deactivate
-
-    this.addSystemAudit({
+    await this.addSystemAudit({
       userId: actor.id,
       userName: actor.fullName,
       action: 'USER_DEACTIVATED',
       entityName: 'User',
-      entityId: user.id,
+      entityId: id,
       details: `Deactivated user account ${user.fullName} (${user.email})`,
     });
-
     return { success: true };
   },
 
-  // --- Sessions & Attendance ---
+  // --- Lectures & attendance ---
   async getSessions(filter?: {
     courseId?: string;
     sectionId?: string;
     facultyId?: string;
     isLocked?: boolean;
   }): Promise<LectureSession[]> {
-    let list = state.sessions;
-    if (filter?.courseId) list = list.filter((s) => s.courseId === filter.courseId);
-    if (filter?.sectionId) list = list.filter((s) => s.sectionId === filter.sectionId);
-    if (filter?.facultyId) list = list.filter((s) => s.facultyId === filter.facultyId);
-    if (filter?.isLocked !== undefined)
-      list = list.filter((s) => s.isLocked === filter.isLocked);
-    return list;
+    await db();
+    const q: Record<string, unknown> = {};
+    if (filter?.courseId) q.courseId = filter.courseId;
+    if (filter?.sectionId) q.sectionId = filter.sectionId;
+    if (filter?.facultyId) q.facultyId = filter.facultyId;
+    if (filter?.isLocked !== undefined) q.isLocked = filter.isLocked;
+    return outAll<LectureSession>(await LectureSessionModel.find(q).sort({ sectionId: 1, sessionNumber: 1 }).lean());
   },
 
   async getSessionById(sessionId: string): Promise<LectureSession | null> {
-    const session = state.sessions.find((s) => s.id === sessionId);
-    return session ? JSON.parse(JSON.stringify(session)) : null;
+    await db();
+    const s = await LectureSessionModel.findById(sessionId).lean();
+    return s ? out<LectureSession>(s) : null;
   },
 
   async createSession(data: {
@@ -283,49 +270,51 @@ export const dbService = {
     lectureDate: string;
     sessionNumber: number;
     sessionTitle: string;
+    periods: number;
   }): Promise<LectureSession> {
-    const section = state.sections.find((s) => s.id === data.sectionId);
-    const students = section ? section.enrolledStudents : ROSTER_STUDENTS;
-
+    await db();
+    const section = await SectionModel.findById(data.sectionId).lean();
+    const students: EnrolledStudent[] = section?.enrolledStudents ?? [];
+    const now = new Date().toISOString();
     const records: AttendanceRecord[] = students.map((stu) => ({
       studentId: stu.studentId,
       enrollmentNumber: stu.enrollmentNumber,
       studentName: stu.fullName,
       status: 'PRESENT',
-      markedAt: new Date().toISOString(),
+      markedAt: now,
     }));
-
-    const newSession: LectureSession = {
-      id: `session-${Date.now()}`,
+    const session: LectureSession = {
+      id: newId('session'),
       ...data,
       isLocked: false,
       records,
-      summary: {
-        totalStudents: records.length,
-        presentCount: records.length,
-        absentCount: 0,
-        lateCount: 0,
-        excusedCount: 0,
-        medicalLeaveCount: 0,
-        onDutyCount: 0,
-      },
+      summary: this._calculateSummary(records),
     };
-
-    state.sessions.push(newSession);
-    return newSession;
+    try {
+      const { id: _id, ...rest } = session;
+      await LectureSessionModel.create({ _id, ...rest });
+    } catch (err) {
+      // The unique indexes allow one open draft per class and unique lecture numbers.
+      if (isDuplicateKey(err)) throw new Error('Finish or submit the open draft for this class first.');
+      throw err;
+    }
+    return session;
   },
 
-  async saveDraftAttendance(
-    sessionId: string,
-    records: AttendanceRecord[]
-  ): Promise<LectureSession> {
-    const session = state.sessions.find((s) => s.id === sessionId);
+  async saveDraftAttendance(sessionId: string, records: AttendanceRecord[]): Promise<LectureSession> {
+    await db();
+    const session = await LectureSessionModel.findById(sessionId).lean();
     if (!session) throw new Error('Session not found');
     if (session.isLocked) throw new Error('Cannot edit locked session');
 
-    session.records = this._mergeMarks(session.records, records);
-    session.summary = this._calculateSummary(session.records);
-    return session;
+    const merged = this._mergeMarks(session.records as AttendanceRecord[], records);
+    const updated = await LectureSessionModel.findOneAndUpdate(
+      { _id: sessionId, isLocked: false },
+      { $set: { records: merged, summary: this._calculateSummary(merged) } },
+      { new: true }
+    ).lean();
+    if (!updated) throw new Error('Cannot edit locked session');
+    return out<LectureSession>(updated);
   },
 
   /**
@@ -353,84 +342,79 @@ export const dbService = {
     });
   },
 
-  async submitAndLockSession(
-    sessionId: string,
-    facultyId: string,
-    records: AttendanceRecord[]
-  ): Promise<LectureSession> {
-    const session = state.sessions.find((s) => s.id === sessionId);
+  async submitAndLockSession(sessionId: string, facultyId: string, records: AttendanceRecord[]): Promise<LectureSession> {
+    await db();
+    const session = await LectureSessionModel.findById(sessionId).lean();
     if (!session) throw new Error('Session not found');
-    if (session.isLocked) {
-      throw new Error('This attendance session is locked and immutable.');
-    }
-    if (session.records.length === 0) {
-      throw new Error('This class has no students on its roster.');
-    }
+    if (session.isLocked) throw new Error('This attendance session is locked and immutable.');
+    if (session.records.length === 0) throw new Error('This class has no students on its roster.');
 
-    session.records = this._mergeMarks(session.records, records);
-    session.summary = this._calculateSummary(session.records);
-    session.isLocked = true;
-    session.submittedAt = new Date().toISOString();
-    session.submittedBy = facultyId;
+    const merged = this._mergeMarks(session.records as AttendanceRecord[], records);
+    const summary = this._calculateSummary(merged);
+    // Conditional update: only one request can ever lock a lecture.
+    const updated = await LectureSessionModel.findOneAndUpdate(
+      { _id: sessionId, isLocked: false },
+      {
+        $set: {
+          records: merged,
+          summary,
+          isLocked: true,
+          submittedAt: new Date().toISOString(),
+          submittedBy: facultyId,
+        },
+      },
+      { new: true }
+    ).lean();
+    if (!updated) throw new Error('This attendance session is locked and immutable.');
 
-    // Log to system audit
-    this.addSystemAudit({
+    const periods = updated.periods ?? 1;
+    await this.addSystemAudit({
       userId: facultyId,
-      userName: nameOf(facultyId),
+      userName: await nameOf(facultyId),
       action: 'ATTENDANCE_SUBMITTED_AND_LOCKED',
       entityName: 'LectureSession',
       entityId: sessionId,
-      details: `Session #${session.sessionNumber} locked with ${session.summary.presentCount} present out of ${session.summary.totalStudents}`,
+      details: `Lecture ${updated.sessionNumber} (${periods} period${periods > 1 ? 's' : ''}) locked with ${summary.presentCount} present out of ${summary.totalStudents}`,
     });
-
-    return session;
+    return out<LectureSession>(updated);
   },
 
-  async copyPreviousSession(
-    currentSessionId: string
-  ): Promise<AttendanceRecord[]> {
-    const currentSession = state.sessions.find((s) => s.id === currentSessionId);
-    if (!currentSession) throw new Error('Current session not found');
+  async copyPreviousSession(currentSessionId: string): Promise<AttendanceRecord[]> {
+    await db();
+    const current = await LectureSessionModel.findById(currentSessionId).lean();
+    if (!current) throw new Error('Current session not found');
+    const previous = await LectureSessionModel.findOne({
+      courseId: current.courseId,
+      sectionId: current.sectionId,
+      _id: { $ne: currentSessionId },
+      isLocked: true,
+    })
+      .sort({ sessionNumber: -1 })
+      .lean();
+    if (!previous) throw new Error('No previous completed sessions available to copy from.');
 
-    // Find preceding session for the same course and section
-    const priorSessions = state.sessions
-      .filter(
-        (s) =>
-          s.courseId === currentSession.courseId &&
-          s.sectionId === currentSession.sectionId &&
-          s.id !== currentSessionId &&
-          s.isLocked
-      )
-      .sort((a, b) => b.sessionNumber - a.sessionNumber);
-
-    if (priorSessions.length === 0) {
-      throw new Error('No previous completed sessions available to copy from.');
-    }
-
-    const previousSession = priorSessions[0];
-    const prevMap = new Map(
-      previousSession.records.map((r) => [r.studentId, r.status])
-    );
-
+    const prevMap = new Map(previous.records.map((r) => [r.studentId, r.status]));
     // Return a proposal only; nothing is saved until the faculty saves the draft.
-    return currentSession.records.map((r) => ({
+    return (current.records as AttendanceRecord[]).map((r) => ({
       ...r,
-      status: prevMap.get(r.studentId) || 'PRESENT',
+      status: (prevMap.get(r.studentId) as AttendanceStatus) || 'PRESENT',
     }));
   },
 
-  // --- Leaves ---
-  async getLeaves(filter?: {
-    studentId?: string;
-    departmentId?: string;
-    status?: string;
-  }): Promise<LeaveApplication[]> {
-    let list = state.leaves;
-    if (filter?.studentId) list = list.filter((l) => l.studentId === filter.studentId);
-    if (filter?.departmentId)
-      list = list.filter((l) => l.departmentId === filter.departmentId);
-    if (filter?.status) list = list.filter((l) => l.status === filter.status);
-    return list;
+  // --- Leave ---
+  async getLeaves(filter?: { studentId?: string; departmentId?: string; status?: string }): Promise<LeaveApplication[]> {
+    await db();
+    const q: Record<string, unknown> = {};
+    if (filter?.studentId) q.studentId = filter.studentId;
+    if (filter?.departmentId) q.departmentId = filter.departmentId;
+    if (filter?.status) q.status = filter.status;
+    return outAll<LeaveApplication>(await LeaveApplicationModel.find(q).sort({ createdAt: -1 }).lean());
+  },
+
+  async getLeaveById(id: string): Promise<LeaveApplication | null> {
+    await db();
+    const l = await LeaveApplicationModel.findById(id).lean();
+    return l ? out<LeaveApplication>(l) : null;
   },
 
   async submitLeave(data: {
@@ -445,233 +429,219 @@ export const dbService = {
     reason: string;
     documentUrl?: string;
   }): Promise<LeaveApplication> {
-    const newLeave: LeaveApplication = {
-      id: `leave-${Date.now()}`,
+    await db();
+    const leave: LeaveApplication = {
+      id: newId('leave'),
       ...data,
       status: 'PENDING',
       createdAt: new Date().toISOString(),
     };
-    state.leaves.unshift(newLeave);
-
-    this.addSystemAudit({
+    const { id: _id, ...rest } = leave;
+    await LeaveApplicationModel.create({ _id, ...rest });
+    await this.addSystemAudit({
       userId: data.studentId,
       userName: data.studentName,
       action: 'LEAVE_APPLICATION_SUBMITTED',
       entityName: 'LeaveApplication',
-      entityId: newLeave.id,
+      entityId: leave.id,
       details: `${data.leaveType} leave applied from ${data.startDate} to ${data.endDate}`,
     });
-
-    return newLeave;
+    return leave;
   },
 
+  /**
+   * Approve or reject a pending leave. Approval excuses the student's ABSENT
+   * marks in that date range. Everything happens in one transaction, so the
+   * leave, the lectures and the audit entries change together or not at all.
+   */
   async reviewLeave(
     leaveId: string,
     hodUserId: string,
     status: 'APPROVED' | 'REJECTED',
     reviewComments: string
   ): Promise<{ leave: LeaveApplication; updatedSessionCount: number }> {
-    const leave = state.leaves.find((l) => l.id === leaveId);
-    if (!leave) throw new Error('Leave application not found');
+    const conn = await db();
+    const hodName = await nameOf(hodUserId);
+    let result: { leave: LeaveApplication; updatedSessionCount: number } | undefined;
 
-    leave.status = status;
-    leave.reviewedBy = hodUserId;
-    leave.reviewComments = reviewComments;
-    leave.reviewedAt = new Date().toISOString();
-
-    let updatedSessionCount = 0;
-
-    // RULE 9 & 10: Approved leave automatically excuses overlapping attendance
-    if (status === 'APPROVED') {
-      const targetStatus =
-        leave.leaveType === 'MEDICAL'
-          ? 'MEDICAL_LEAVE'
-          : leave.leaveType === 'ON_DUTY'
-          ? 'ON_DUTY'
-          : 'EXCUSED';
-
-      state.sessions.forEach((session) => {
-        if (
-          session.lectureDate >= leave.startDate &&
-          session.lectureDate <= leave.endDate
-        ) {
-          const rec = session.records.find((r) => r.studentId === leave.studentId);
-          // Only absences are excused; a lecture the student attended stays as marked.
-          if (rec && rec.status === 'ABSENT') {
-            const previousStatus = rec.status;
-            rec.status = targetStatus;
-            rec.remarks = `Leave Approved #${leave.id}`;
-            session.summary = this._calculateSummary(session.records);
-            updatedSessionCount++;
-
-            state.audits.push({
-              id: `audit-att-${Date.now()}-${session.id}`,
-              sessionId: session.id,
-              studentId: leave.studentId,
-              studentName: leave.studentName,
-              previousStatus,
-              newStatus: targetStatus,
-              reason: `Automated leave integration #${leave.id} (${leave.leaveType})`,
-              changedBy: hodUserId,
-              changedByName: nameOf(hodUserId),
-              createdAt: new Date().toISOString(),
-            });
-          }
-        }
-      });
-    }
-
-    this.addSystemAudit({
-      userId: hodUserId,
-      userName: nameOf(hodUserId),
-      action: `LEAVE_${status}`,
-      entityName: 'LeaveApplication',
-      entityId: leave.id,
-      details: `${status === 'APPROVED' ? 'Approved' : 'Rejected'} ${leave.studentName}'s ${leave.leaveType.toLowerCase().replace('_', ' ')} leave (${leave.startDate} to ${leave.endDate}); ${updatedSessionCount} absence(s) excused.`,
-    });
-
-    return { leave, updatedSessionCount };
-  },
-
-  // --- Compliance & Defaulters (75% Threshold Engine) ---
-  async getComplianceStats(courseId: string, sectionId: string): Promise<StudentComplianceStats[]> {
-    const lockedSessions = state.sessions.filter(
-      (s) => s.courseId === courseId && s.sectionId === sectionId && s.isLocked
-    );
-
-    const totalLectures = lockedSessions.length;
-    if (totalLectures === 0) return [];
-
-    const course = state.courses.find((c) => c.id === courseId);
-    const section = state.sections.find((s) => s.id === sectionId);
-    const students = section?.enrolledStudents || ROSTER_STUDENTS;
-
-    const stats: StudentComplianceStats[] = students.map((stu) => {
-      let attended = 0;
-
-      lockedSessions.forEach((sess) => {
-        const r = sess.records.find((rec) => rec.studentId === stu.studentId);
-        if (r) {
-          if (
-            r.status === 'PRESENT' ||
-            r.status === 'LATE' ||
-            r.status === 'EXCUSED' ||
-            r.status === 'MEDICAL_LEAVE' ||
-            r.status === 'ON_DUTY'
-          ) {
-            attended++;
-          }
-        }
-      });
-
-      const percentage = Number(((attended / totalLectures) * 100).toFixed(1));
-      const isDefaulter = percentage < 75.0;
-
-      // Calculate how many consecutive attendances needed to reach 75%
-      // (attended + x) / (totalLectures + x) >= 0.75 => x >= (0.75 * total - attended) / 0.25
-      let neededFor75 = 0;
-      if (isDefaulter) {
-        neededFor75 = Math.max(
-          1,
-          Math.ceil((0.75 * totalLectures - attended) / 0.25)
-        );
+    await conn.connection.transaction(async (tx: ClientSession) => {
+      const leave = await LeaveApplicationModel.findOneAndUpdate(
+        { _id: leaveId, status: 'PENDING' },
+        { $set: { status, reviewedBy: hodUserId, reviewComments, reviewedAt: new Date().toISOString() } },
+        { new: true, session: tx }
+      ).lean();
+      if (!leave) {
+        const exists = await LeaveApplicationModel.exists({ _id: leaveId }).session(tx);
+        throw new Error(exists ? 'This leave request has already been decided.' : 'Leave application not found');
       }
 
+      let updatedSessionCount = 0;
+      if (status === 'APPROVED') {
+        const target: AttendanceStatus =
+          leave.leaveType === 'MEDICAL' ? 'MEDICAL_LEAVE' : leave.leaveType === 'ON_DUTY' ? 'ON_DUTY' : 'EXCUSED';
+        const sessions = await LectureSessionModel.find(
+          {
+            lectureDate: { $gte: leave.startDate, $lte: leave.endDate },
+            records: { $elemMatch: { studentId: leave.studentId, status: 'ABSENT' } },
+          },
+          null,
+          { session: tx }
+        ).lean();
+
+        const now = new Date().toISOString();
+        for (const s of sessions) {
+          // Only absences are excused; a lecture the student attended stays as marked.
+          const records = (s.records as AttendanceRecord[]).map((r) =>
+            r.studentId === leave.studentId && r.status === 'ABSENT'
+              ? { ...r, status: target, remarks: `Leave approved #${leave._id}` }
+              : r
+          );
+          await LectureSessionModel.updateOne(
+            { _id: s._id },
+            { $set: { records, summary: this._calculateSummary(records) } },
+            { session: tx }
+          );
+          await AttendanceAuditModel.create(
+            [
+              {
+                _id: newId('audit-att'),
+                sessionId: s._id,
+                studentId: leave.studentId,
+                studentName: leave.studentName,
+                previousStatus: 'ABSENT',
+                newStatus: target,
+                reason: `Automated leave integration #${leave._id} (${leave.leaveType})`,
+                changedBy: hodUserId,
+                changedByName: hodName,
+                createdAt: now,
+              },
+            ],
+            { session: tx }
+          );
+          updatedSessionCount++;
+        }
+      }
+
+      await this.addSystemAudit(
+        {
+          userId: hodUserId,
+          userName: hodName,
+          action: `LEAVE_${status}`,
+          entityName: 'LeaveApplication',
+          entityId: leaveId,
+          details: `${status === 'APPROVED' ? 'Approved' : 'Rejected'} ${leave.studentName}'s ${leave.leaveType
+            .toLowerCase()
+            .replace('_', ' ')} leave (${leave.startDate} to ${leave.endDate}); ${updatedSessionCount} absence(s) excused.`,
+        },
+        tx
+      );
+      result = { leave: out<LeaveApplication>(leave), updatedSessionCount };
+    });
+
+    return result!;
+  },
+
+  // --- Compliance (75% rule, weighted by periods) ---
+  async getComplianceStats(courseId: string, sectionId: string): Promise<StudentComplianceStats[]> {
+    await db();
+    const [locked, course, section] = await Promise.all([
+      LectureSessionModel.find({ courseId, sectionId, isLocked: true }, { records: 1, periods: 1 }).lean(),
+      CourseModel.findById(courseId).lean(),
+      SectionModel.findById(sectionId).lean(),
+    ]);
+
+    // Weighted by periods: a 2-period lab counts twice.
+    const totalPeriods = locked.reduce((n, s) => n + (s.periods ?? 1), 0);
+    if (totalPeriods === 0) return [];
+
+    const stats: StudentComplianceStats[] = (section?.enrolledStudents ?? []).map((stu) => {
+      let attended = 0;
+      for (const s of locked) {
+        const r = s.records.find((rec) => rec.studentId === stu.studentId);
+        if (r && ATTENDED.includes(r.status as AttendanceStatus)) attended += s.periods ?? 1;
+      }
+      const percentage = Number(((attended / totalPeriods) * 100).toFixed(1));
+      const isDefaulter = percentage < 75.0;
+      // Periods in a row needed to reach 75%: (a + x) / (t + x) >= 0.75 → x >= (0.75t − a) / 0.25
+      const neededFor75 = isDefaulter ? Math.max(1, Math.ceil((0.75 * totalPeriods - attended) / 0.25)) : 0;
       return {
         studentId: stu.studentId,
         enrollmentNumber: stu.enrollmentNumber,
         fullName: stu.fullName,
         courseId,
-        courseCode: course?.code || 'CS-301',
-        courseTitle: course?.title || 'Data Structures',
-        totalLectures,
-        attendedLectures: attended,
+        courseCode: course?.code ?? courseId,
+        courseTitle: course?.title ?? '',
+        totalPeriods,
+        attendedPeriods: attended,
         percentage,
         isDefaulter,
         neededFor75,
       };
     });
-
     return stats.sort((a, b) => a.percentage - b.percentage);
   },
 
   async getStudentPersonalSummary(studentId: string) {
-    const enrolledSessions = state.sessions.filter(
-      (s) => s.isLocked && s.records.some((r) => r.studentId === studentId)
-    );
+    await db();
+    const [sessions, courses, sections] = await Promise.all([
+      LectureSessionModel.find({ isLocked: true, 'records.studentId': studentId }).lean(),
+      CourseModel.find().lean(),
+      SectionModel.find({}, { kind: 1 }).lean(),
+    ]);
+    const courseById = new Map(courses.map((c) => [c._id, c]));
+    const labSections = new Set(sections.filter((s) => s.kind === 'LAB').map((s) => s._id));
 
     let total = 0;
     let present = 0;
     let absent = 0;
     let late = 0;
     let excused = 0;
+    const byCourse = new Map<string, { total: number; attended: number; code: string; title: string }>();
 
-    const courseBreakdownMap = new Map<
-      string,
-      { total: number; attended: number; code: string; title: string }
-    >();
-
-    enrolledSessions.forEach((s) => {
+    for (const s of sessions) {
       const rec = s.records.find((r) => r.studentId === studentId);
-      if (!rec) return;
+      if (!rec) continue;
+      // All counts are in periods (a 2-period lab adds 2).
+      const p = s.periods ?? 1;
+      total += p;
+      if (rec.status === 'PRESENT') present += p;
+      else if (rec.status === 'ABSENT') absent += p;
+      else if (rec.status === 'LATE') late += p;
+      else excused += p; // EXCUSED, MEDICAL_LEAVE, ON_DUTY
 
-      total++;
-      if (rec.status === 'PRESENT') present++;
-      else if (rec.status === 'ABSENT') absent++;
-      else if (rec.status === 'LATE') late++;
-      else if (
-        rec.status === 'EXCUSED' ||
-        rec.status === 'MEDICAL_LEAVE' ||
-        rec.status === 'ON_DUTY'
-      )
-        excused++;
+      const c = courseById.get(s.courseId);
+      const row = byCourse.get(s.courseId) ?? { total: 0, attended: 0, code: c?.code ?? s.courseId, title: c?.title ?? 'Course' };
+      row.total += p;
+      if (rec.status !== 'ABSENT') row.attended += p;
+      byCourse.set(s.courseId, row);
+    }
 
-      const isAttended = rec.status !== 'ABSENT';
-      const c = state.courses.find((course) => course.id === s.courseId);
-      const existing = courseBreakdownMap.get(s.courseId) || {
-        total: 0,
-        attended: 0,
-        code: c?.code || s.courseId,
-        title: c?.title || 'Course',
-      };
-      existing.total++;
-      if (isAttended) existing.attended++;
-      courseBreakdownMap.set(s.courseId, existing);
-    });
-
-    const overallPercentage =
-      total > 0 ? Number((((present + late + excused) / total) * 100).toFixed(1)) : 100;
-
-    const courses = Array.from(courseBreakdownMap.entries()).map(([courseId, val]) => ({
-      courseId,
-      code: val.code,
-      title: val.title,
-      total: val.total,
-      attended: val.attended,
-      percentage: Number(((val.attended / val.total) * 100).toFixed(1)),
-      isDefaulter: Number(((val.attended / val.total) * 100).toFixed(1)) < 75.0,
-    }));
+    const overallPercentage = total > 0 ? Number((((present + late + excused) / total) * 100).toFixed(1)) : 100;
 
     return {
-      totalSessions: total,
+      totalPeriods: total,
       presentCount: present,
       absentCount: absent,
       lateCount: late,
       excusedCount: excused,
       overallPercentage,
       isCompliant: overallPercentage >= 75.0,
-      courses,
+      courses: Array.from(byCourse.entries()).map(([courseId, v]) => {
+        const percentage = Number(((v.attended / v.total) * 100).toFixed(1));
+        return { courseId, code: v.code, title: v.title, total: v.total, attended: v.attended, percentage, isDefaulter: percentage < 75.0 };
+      }),
       // Newest first: one row per locked lecture this student was on the roster for.
-      history: enrolledSessions
+      history: sessions
         .map((s) => {
           const rec = s.records.find((r) => r.studentId === studentId)!;
-          const c = state.courses.find((course) => course.id === s.courseId);
           return {
-            sessionId: s.id,
+            sessionId: s._id,
             lectureDate: s.lectureDate,
-            courseCode: c?.code || s.courseId,
+            courseCode: courseById.get(s.courseId)?.code ?? s.courseId,
             sessionNumber: s.sessionNumber,
             sessionTitle: s.sessionTitle,
+            periods: s.periods ?? 1,
+            isLab: labSections.has(s.sectionId),
             status: rec.status,
             remarks: rec.remarks,
           };
@@ -680,7 +650,12 @@ export const dbService = {
     };
   },
 
-  // --- Bulk Student Enrollment Import (CSV/Excel) ---
+  // --- Bulk student import (CSV) ---
+  /**
+   * Add students to a class roster. Rows with an email also get a login:
+   * an existing student account is linked, otherwise a new account is created
+   * with a random temporary password, returned once so the admin can share it.
+   */
   async importStudentsRoster(
     sectionId: string,
     importedList: { enrollmentNumber: string; fullName: string; email: string }[],
@@ -691,88 +666,120 @@ export const dbService = {
     duplicates: number;
     invalidRecords: number;
     records: EnrolledStudent[];
+    accounts: { enrollmentNumber: string; fullName: string; email: string; tempPassword: string }[];
+    withoutLogin: number;
   }> {
-    const section = state.sections.find((s) => s.id === sectionId);
+    await db();
+    const section = await SectionModel.findById(sectionId).lean();
     if (!section) throw new Error('Section not found');
 
     let duplicates = 0;
     let invalidRecords = 0;
-    const existingEnrollments = new Set(
-      section.enrolledStudents.map((s) => s.enrollmentNumber.trim().toUpperCase())
-    );
+    let withoutLogin = 0;
+    const existing = new Set(section.enrolledStudents.map((s) => s.enrollmentNumber.trim().toUpperCase()));
+    const added: EnrolledStudent[] = [];
+    const accounts: { enrollmentNumber: string; fullName: string; email: string; tempPassword: string }[] = [];
 
-    const newlyAdded: EnrolledStudent[] = [];
-
-    importedList.forEach((item) => {
+    for (const item of importedList) {
       const enroll = item.enrollmentNumber?.trim().toUpperCase();
       const name = item.fullName?.trim();
-      const email = item.email?.trim();
-
-      if (!enroll || !name) {
+      const email = item.email?.trim().toLowerCase() || '';
+      if (!enroll || !name || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
         invalidRecords++;
-        return;
+        continue;
       }
-
-      if (existingEnrollments.has(enroll)) {
+      if (existing.has(enroll)) {
         duplicates++;
-        return;
+        continue;
       }
 
-      existingEnrollments.add(enroll);
-      const studentId = `stu-imp-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-      const newStudent: EnrolledStudent = {
-        studentId,
-        enrollmentNumber: enroll,
-        fullName: name,
-        email: email || `${enroll.toLowerCase()}@univ.edu`,
-      };
+      let studentId = newId('stu');
+      if (email) {
+        const user = await UserModel.findOne({ email }).lean();
+        if (user && user.role !== 'STUDENT') {
+          invalidRecords++; // email belongs to a staff account
+          continue;
+        }
+        if (user) {
+          studentId = user._id;
+          await UserModel.updateOne({ _id: user._id }, { $addToSet: { 'studentProfile.enrolledSections': sectionId } });
+        } else {
+          const tempPassword = randomBytes(9).toString('base64url');
+          await UserModel.create({
+            _id: studentId,
+            ssoId: `sso_${studentId}`,
+            email,
+            fullName: name,
+            role: 'STUDENT',
+            campusId: section.campusId,
+            departmentId: section.departmentId,
+            isActive: true,
+            password: hashPassword(tempPassword),
+            createdAt: new Date().toISOString(),
+            studentProfile: { enrollmentNumber: enroll, academicYear: '2026-27', enrolledSections: [sectionId] },
+          });
+          accounts.push({ enrollmentNumber: enroll, fullName: name, email, tempPassword });
+        }
+      } else {
+        withoutLogin++;
+      }
+      existing.add(enroll);
+      added.push({ studentId, enrollmentNumber: enroll, fullName: name, email });
+    }
 
-      newlyAdded.push(newStudent);
-      section.enrolledStudents.push(newStudent);
-    });
+    const updated = await SectionModel.findByIdAndUpdate(
+      sectionId,
+      { $push: { enrolledStudents: { $each: added } } },
+      { new: true }
+    ).lean();
 
-    this.addSystemAudit({
+    await this.addSystemAudit({
       userId: actor.id,
       userName: actor.fullName,
       action: 'BULK_STUDENT_IMPORT',
       entityName: 'Section',
       entityId: sectionId,
-      details: `Imported ${newlyAdded.length} students into ${section.name}. Duplicates: ${duplicates}, Invalid: ${invalidRecords}`,
+      details: `Imported ${added.length} students into ${section.name} (${accounts.length} new logins). Duplicates: ${duplicates}, Invalid: ${invalidRecords}`,
     });
 
     return {
       totalReceived: importedList.length,
-      successfullyImported: newlyAdded.length,
+      successfullyImported: added.length,
       duplicates,
       invalidRecords,
-      records: section.enrolledStudents,
+      records: updated?.enrolledStudents ?? [],
+      accounts,
+      withoutLogin,
     };
   },
 
-  // --- Audits & Logs ---
+  // --- Audit log (append-only) ---
   async getSystemAuditLogs(): Promise<SystemAuditLog[]> {
-    return state.systemAuditLogs;
+    await db();
+    return outAll<SystemAuditLog>(await SystemAuditLogModel.find().sort({ timestamp: -1 }).limit(500).lean());
   },
 
-  addSystemAudit(entry: Omit<SystemAuditLog, 'id' | 'timestamp'>) {
-    const log: SystemAuditLog = {
-      id: `audit-log-${Date.now()}`,
-      ...entry,
-      timestamp: new Date().toISOString(),
-    };
-    state.systemAuditLogs.unshift(log);
+  async addSystemAudit(entry: Omit<SystemAuditLog, 'id' | 'timestamp'>, tx?: ClientSession): Promise<void> {
+    await db();
+    await SystemAuditLogModel.create([{ _id: newId('audit-log'), ...entry, timestamp: new Date().toISOString() }], {
+      session: tx,
+    });
   },
 
   // --- Helpers ---
   _calculateSummary(records: AttendanceRecord[]) {
+    const count = (s: AttendanceStatus) => records.filter((r) => r.status === s).length;
     return {
       totalStudents: records.length,
-      presentCount: records.filter((r) => r.status === 'PRESENT').length,
-      absentCount: records.filter((r) => r.status === 'ABSENT').length,
-      lateCount: records.filter((r) => r.status === 'LATE').length,
-      excusedCount: records.filter((r) => r.status === 'EXCUSED').length,
-      medicalLeaveCount: records.filter((r) => r.status === 'MEDICAL_LEAVE').length,
-      onDutyCount: records.filter((r) => r.status === 'ON_DUTY').length,
+      presentCount: count('PRESENT'),
+      absentCount: count('ABSENT'),
+      lateCount: count('LATE'),
+      excusedCount: count('EXCUSED'),
+      medicalLeaveCount: count('MEDICAL_LEAVE'),
+      onDutyCount: count('ON_DUTY'),
     };
   },
 };
+
+// Re-exported for scripts that need the raw connection (e.g. db:reset).
+export { mongoose };

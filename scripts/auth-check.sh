@@ -3,6 +3,7 @@
 #   bun run dev   (in another terminal)
 #   bash scripts/auth-check.sh [base_url]
 set -u
+TODAY=$(TZ=Asia/Kolkata date +%F)
 BASE="${1:-http://localhost:3000}"
 JAR=$(mktemp -d)
 trap 'rm -rf "$JAR"' EXIT
@@ -45,6 +46,9 @@ expect "meta hides class rosters"       no  "$(echo "$meta" | grep -q 'enrolledS
 expect "meta requires sign-in"          401 "$(code "$BASE/api/meta")"
 expect "faculty2 login"                 200 "$(login fac2 anita.desai@univ.edu faculty123)"
 expect "faculty can't start other's class" 403 "$(code -b "$JAR/fac2" -H 'Content-Type: application/json' -d '{"sectionId":"sec-ds-a","lectureDate":"2026-11-01"}' "$BASE/api/sessions")"
+expect "bad period count rejected"     400 "$(code -b "$JAR/fac" -H 'Content-Type: application/json' -d '{"sectionId":"sec-ds-b","lectureDate":"'"$TODAY"'","periods":5}' "$BASE/api/sessions")"
+expect "future lecture date rejected"  400 "$(code -b "$JAR/fac" -H 'Content-Type: application/json' -d '{"sectionId":"sec-ds-b","lectureDate":"2099-01-01"}' "$BASE/api/sessions")"
+expect "lecture older than window rejected" 400 "$(code -b "$JAR/fac" -H 'Content-Type: application/json' -d '{"sectionId":"sec-ds-b","lectureDate":"2020-01-01"}' "$BASE/api/sessions")"
 expect "bad lecture date rejected"      400 "$(code -b "$JAR/fac" -H 'Content-Type: application/json' -d '{"sectionId":"sec-ds-b","lectureDate":"tomorrow"}' "$BASE/api/sessions")"
 draft=$(curl -s -b "$JAR/fac" "$BASE/api/sessions" | grep -o '"id":"[^"]*","campusId[^}]*"isLocked":false' | head -1 | grep -o '^"id":"[^"]*"' | cut -d'"' -f4)
 if [ -n "$draft" ]; then

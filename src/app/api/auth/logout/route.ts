@@ -9,7 +9,7 @@ export async function POST() {
   response.cookies.set(SESSION_COOKIE, '', { ...sessionCookieOptions, maxAge: 0 });
 
   if (user) {
-    dbService.addSystemAudit({
+    await dbService.addSystemAudit({
       userId: user.id,
       userName: user.fullName,
       action: 'USER_LOGOUT',
