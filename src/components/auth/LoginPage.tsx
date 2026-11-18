@@ -66,12 +66,12 @@ export const LoginPage: React.FC = () => {
       <section className="relative overflow-hidden border-b lg:border-b-0 lg:border-r border-slate-200">
         {/* Campus photo under a white wash so the headline stays readable */}
         <Image
-          src="/images/gec-modasa.jpg"
+          src="/images/iit-bombay-main-building.jpg"
           alt=""
           fill
           priority
           sizes="(min-width: 1024px) 55vw, 100vw"
-          className="object-cover object-[70%_center]"
+          className="object-cover object-[60%_center]"
         />
         <div className="absolute inset-0 bg-[linear-gradient(90deg,#fff_0%,rgba(255,255,255,.97)_38%,rgba(255,255,255,.75)_58%,rgba(255,255,255,.1)_100%)] max-lg:bg-[linear-gradient(180deg,rgba(255,255,255,.75)_0%,rgba(255,255,255,.95)_45%,#fff_100%)]" />
         <div className="relative flex flex-col h-full px-4 sm:px-10 lg:px-14 py-8 lg:py-12">
@@ -107,14 +107,14 @@ export const LoginPage: React.FC = () => {
           </div>
 
           <p className="mt-10 lg:mt-0 text-2xs text-slate-500">
-            Government Engineering College, Modasa. Photo:{' '}
+            Main Building, IIT Bombay. Photo:{' '}
             <a
-              href="https://commons.wikimedia.org/wiki/File:GEC_MODASA.jpg"
+              href="https://commons.wikimedia.org/wiki/File:Main_building_in_IIT_Bombay.jpg"
               target="_blank"
               rel="noopener noreferrer"
               className="underline underline-offset-2 hover:text-slate-800"
             >
-              Saifullah.vguj
+              Shishirdasika
             </a>
             ,{' '}
             <a
@@ -211,11 +211,12 @@ export const LoginPage: React.FC = () => {
             </MuiButton>
           </form>
 
-          {process.env.NODE_ENV !== 'production' && (
+          {/* Prod shows this only with NEXT_PUBLIC_DEMO_MODE=true; pair it with SEED_DEMO_DATA=true so the accounts exist. */}
+          {(process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEMO_MODE === 'true') && (
             <div className="mt-8 pt-6 border-t border-slate-200">
               <h3 className="text-sm font-semibold text-slate-800">Demo accounts</h3>
               <p className="text-2xs text-slate-500 mt-0.5">
-                Development only. Click one to fill the form, then sign in.
+                Try any role. Click one to fill the form, then sign in.
               </p>
               <List disablePadding className="mt-3 border border-slate-200 rounded-xl bg-white overflow-hidden">
                 {DEMO_ACCOUNTS.map(({ role, name, email: e, password: p, icon: Icon }, idx) => (
