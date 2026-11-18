@@ -195,6 +195,7 @@ export const LoginPage: React.FC = () => {
               <h3 className="text-sm font-semibold text-slate-800">Demo accounts</h3>
               <p className="text-2xs text-slate-500 mt-0.5">
                 Try any role. Click one to fill the form, then sign in.
+                {process.env.NEXT_PUBLIC_DEMO_MODE === 'true' && " Read-only: changes aren't saved."}
               </p>
               <List disablePadding className="mt-3 border border-slate-200 rounded-xl bg-white overflow-hidden">
                 {DEMO_ACCOUNTS.map(({ role, name, email: e, password: p, icon: Icon }, idx) => (
