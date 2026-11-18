@@ -105,28 +105,6 @@ export const LoginPage: React.FC = () => {
               ))}
             </ul>
           </div>
-
-          <p className="mt-10 lg:mt-0 text-2xs text-slate-500">
-            Main Building, IIT Bombay. Photo:{' '}
-            <a
-              href="https://commons.wikimedia.org/wiki/File:Main_building_in_IIT_Bombay.jpg"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline underline-offset-2 hover:text-slate-800"
-            >
-              Shishirdasika
-            </a>
-            ,{' '}
-            <a
-              href="https://creativecommons.org/licenses/by-sa/4.0/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline underline-offset-2 hover:text-slate-800"
-            >
-              CC BY-SA 4.0
-            </a>
-            , resized.
-          </p>
         </div>
       </section>
 
