@@ -10,6 +10,8 @@ import type {
   Campus,
   Course,
   Department,
+  Fee,
+  FeePayment,
   LeaveApplication,
   LectureSession,
   Section,
@@ -326,6 +328,56 @@ const CalendarEventSchema = new Schema(
 );
 CalendarEventSchema.index({ date: 1 });
 
+const FeeSchema = new Schema(
+  {
+    _id: str,
+    title: str,
+    amount: { type: Number, required: true, min: 100 },
+    departmentId: String,
+    academicYear: String,
+    dueDate: str,
+    note: String,
+    createdBy: str,
+    createdAt: str,
+  },
+  opts
+);
+
+const FeePaymentSchema = new Schema(
+  {
+    _id: str,
+    feeId: str,
+    studentId: { ...str, index: true },
+    status: { type: String, enum: ['CREATED', 'PAID', 'FAILED', 'DUPLICATE'], required: true },
+    gateway: { type: String, enum: ['razorpay', 'cashfree', 'payu', 'paytm', 'stripe', 'paypal'], required: true },
+    gatewayOrderId: str,
+    gatewayPaymentId: String,
+    method: String,
+    amount: { type: Number, required: true },
+    currency: { type: String, default: 'INR' },
+    chargedAmount: Number,
+    chargedCurrency: String,
+    exchangeRate: Number,
+    receiptNumber: String,
+    paidAt: String,
+    createdAt: str,
+    feeTitle: str,
+    academicYear: String,
+    collegeName: str,
+    departmentName: String,
+    studentName: str,
+    enrollmentNumber: str,
+    studentEmail: { type: String, default: '' },
+  },
+  // Own collection: one document per payment attempt.
+  { ...opts, collection: 'fee_payment_attempts' }
+);
+FeePaymentSchema.index({ gateway: 1, gatewayOrderId: 1 }, { unique: true });
+// A fee can be PAID only once per student; a second success becomes DUPLICATE.
+FeePaymentSchema.index({ feeId: 1, studentId: 1 }, { unique: true, partialFilterExpression: { status: 'PAID' } });
+FeePaymentSchema.index({ feeId: 1, studentId: 1, status: 1, createdAt: -1 });
+FeePaymentSchema.index({ receiptNumber: 1 }, { unique: true, partialFilterExpression: { receiptNumber: { $type: 'string' } } });
+
 function model<T>(name: string, schema: Schema): Model<T> {
   // Reuse compiled models across Next.js hot reloads.
   return (mongoose.models[name] as Model<T>) || (mongoose.model(name, schema) as unknown as Model<T>);
@@ -347,3 +399,5 @@ export const AssignmentModel = model<Doc<Assignment>>('Assignment', AssignmentSc
 export const SubmissionModel = model<Doc<Submission>>('Submission', SubmissionSchema);
 export const ExamSlotModel = model<Doc<ExamSlot>>('ExamSlot', ExamSlotSchema);
 export const CalendarEventModel = model<Doc<CalendarEvent>>('CalendarEvent', CalendarEventSchema);
+export const FeeModel = model<Doc<Fee>>('Fee', FeeSchema);
+export const FeePaymentModel = model<Doc<FeePayment>>('FeePaymentAttempt', FeePaymentSchema);

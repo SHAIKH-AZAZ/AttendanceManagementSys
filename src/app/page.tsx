@@ -9,7 +9,7 @@ import { StudentPortal } from '@/components/student/StudentPortal';
 import { HODPortal } from '@/components/hod/HODPortal';
 import { AdminPortal } from '@/components/admin/AdminPortal';
 import { UniversityReportModal } from '@/components/reports/UniversityReportModal';
-import { defaultTab } from '@/lib/navigation';
+import { defaultTab, TABS } from '@/lib/navigation';
 
 function DashboardContent() {
   const { user, logout, isLoading } = useAuth();
@@ -19,10 +19,13 @@ function DashboardContent() {
     sectionId: string;
   } | null>(null);
 
-  // Land on the role's first section whenever the signed-in role changes.
+  // Land on the role's first section whenever the signed-in role changes, or on
+  // ?tab= when it names one of this role's sections (payment gateways return to the Fees tab).
   const role = user?.role;
   useEffect(() => {
-    if (role) setActiveTab(defaultTab(role));
+    if (!role) return;
+    const wanted = new URLSearchParams(window.location.search).get('tab');
+    setActiveTab(wanted && TABS[role].some((t) => t.id === wanted) ? wanted : defaultTab(role));
   }, [role]);
 
   if (isLoading) {

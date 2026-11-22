@@ -24,3 +24,17 @@ export const MARKS_NEED_HOD_APPROVAL = true;
 
 /** Suggested assessment types (free text is also allowed). */
 export const ASSESSMENT_COMPONENTS = ['Mid-semester exam', 'Unit test', 'Quiz', 'Assignment', 'Viva', 'Practical', 'Other'];
+
+/** Paise as rupees in Indian grouping: 4500000 → "₹45,000", 125050 → "₹1,250.50". */
+export const formatINR = (paise: number) =>
+  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: paise % 100 ? 2 : 0 }).format(paise / 100);
+
+/** Payment gateways in the order students see them, with sandbox test details. All run in test mode only. */
+export const PAYMENT_GATEWAYS = {
+  razorpay: { label: 'Razorpay', hint: 'UPI, cards, net banking. Test card 4100 2800 0000 1007, any future expiry, any CVV, OTP of 4–10 digits.' },
+  cashfree: { label: 'Cashfree', hint: 'Test card 4576 2389 1277 1450, expiry 03/28, CVV 123, OTP 111000. UPI: testsuccess@gocash.' },
+  payu: { label: 'PayU', hint: 'Test card 5123 4567 8901 2346, expiry 05/30, CVV 123, OTP 123456.' },
+  paytm: { label: 'Paytm', hint: 'Choose a card or net banking and pick “success” on Paytm’s test page. UPI: 7777777777@paytm.' },
+  stripe: { label: 'Stripe', hint: 'Test card 4242 4242 4242 4242, any future date, any CVC.' },
+  paypal: { label: 'PayPal', hint: 'Log in with your PayPal sandbox buyer account. Charged in US dollars (converted).' },
+} as const;

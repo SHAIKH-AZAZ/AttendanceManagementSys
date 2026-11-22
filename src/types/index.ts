@@ -336,3 +336,56 @@ export interface CalendarEvent {
   createdBy: string;
   createdAt: string;
 }
+
+/** A fee the office publishes for a group of students. Amounts are in paise (₹1 = 100). */
+export interface Fee {
+  id: string;
+  title: string;
+  amount: number;
+  /** Department it applies to; absent = every department. */
+  departmentId?: string;
+  /** Student academic year it applies to (e.g. "2026-2027"); absent = every year. */
+  academicYear?: string;
+  dueDate: string; // YYYY-MM-DD
+  note?: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export type PaymentGatewayId = 'razorpay' | 'cashfree' | 'payu' | 'paytm' | 'stripe' | 'paypal';
+
+/**
+ * One attempt by a student to pay one fee through one gateway. Only one
+ * attempt per student and fee can be PAID; a second success elsewhere is
+ * marked DUPLICATE so the office can refund it. The receipt is printed from
+ * the snapshot fields, so it stays the same even if the fee, the student's
+ * name or the college details change later.
+ */
+export interface FeePayment {
+  id: string;
+  feeId: string;
+  studentId: string;
+  status: 'CREATED' | 'PAID' | 'FAILED' | 'DUPLICATE';
+  gateway: PaymentGatewayId;
+  /** The gateway's id for this checkout (order, session or transaction id). */
+  gatewayOrderId: string;
+  gatewayPaymentId?: string;
+  method?: string; // card, upi, netbanking, wallet…
+  amount: number; // the fee, in paise
+  currency: 'INR';
+  /** Set when the gateway charges another currency (PayPal: USD cents). */
+  chargedAmount?: number;
+  chargedCurrency?: string;
+  /** Rupees per unit of chargedCurrency used for the conversion. */
+  exchangeRate?: number;
+  receiptNumber?: string;
+  paidAt?: string;
+  createdAt: string;
+  feeTitle: string;
+  academicYear?: string;
+  collegeName: string;
+  departmentName?: string;
+  studentName: string;
+  enrollmentNumber: string;
+  studentEmail: string;
+}
