@@ -18,6 +18,7 @@ export const TABS: Record<UserRole, { id: string; label: string }[]> = {
     { id: 'student-assignments', label: 'Assignments' },
     { id: 'student-schedule', label: 'Schedule' },
     { id: 'student-leaves', label: 'Leave' },
+    { id: 'student-fees', label: 'Fees' },
   ],
   HOD: [
     { id: 'hod-overview', label: 'Overview' },
@@ -33,6 +34,7 @@ export const TABS: Record<UserRole, { id: string; label: string }[]> = {
     { id: 'admin-users', label: 'Users' },
     { id: 'admin-structure', label: 'Academic structure' },
     { id: 'admin-schedule', label: 'Exams & calendar' },
+    { id: 'admin-fees', label: 'Fees' },
     { id: 'admin-import', label: 'Bulk import' },
     { id: 'admin-reports', label: 'Reports' },
     { id: 'admin-audit', label: 'Audit log' },

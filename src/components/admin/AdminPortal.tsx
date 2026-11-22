@@ -42,6 +42,7 @@ import {
 import { UserManagementTab } from './UserManagementTab';
 import { AddClassDialog, AddSubjectDialog } from './StructureDialogs';
 import { ScheduleAdminTab } from './ScheduleAdminTab';
+import { FeesAdminTab } from './FeesAdminTab';
 
 interface ImportPreview {
   totalRecords: number;
@@ -336,6 +337,7 @@ export const AdminPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, on
       )}
 
       {activeTab === 'admin-schedule' && meta && <ScheduleAdminTab meta={meta} notify={setNotice} />}
+      {activeTab === 'admin-fees' && meta && <FeesAdminTab meta={meta} notify={setNotice} />}
 
       {/* ---------------------------------------------------------- Bulk import */}
       {activeTab === 'admin-import' && (

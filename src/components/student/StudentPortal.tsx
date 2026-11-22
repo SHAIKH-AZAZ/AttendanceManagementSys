@@ -12,6 +12,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { StudentMarksTab } from './MarksTab';
 import { StudentAssignmentsTab } from './AssignmentsTab';
+import { StudentFeesTab } from './FeesTab';
 import { ScheduleTab } from '@/components/schedule/ScheduleTab';
 import type { PortalProps } from '@/lib/navigation';
 import type { AttendanceStatus, LeaveApplication, LeaveType } from '@/types';
@@ -379,6 +380,7 @@ export const StudentPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab }
 
       {activeTab === 'student-marks' && <StudentMarksTab />}
       {activeTab === 'student-assignments' && <StudentAssignmentsTab notify={setNotice} />}
+      {activeTab === 'student-fees' && <StudentFeesTab notify={setNotice} />}
       {activeTab === 'student-schedule' && <ScheduleTab description="Your exams, holidays and college events." />}
 
       {/* Apply for leave */}
