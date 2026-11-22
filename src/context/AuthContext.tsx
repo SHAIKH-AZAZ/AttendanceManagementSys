@@ -39,23 +39,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     fetchSession();
   }, []);
 
+  // Doesn't touch isLoading: the page swaps in a full-screen spinner while it's set, which
+  // would unmount the sign-in form and lose its error message. LoginPage shows its own progress.
   const login = async (email: string, password: string): Promise<boolean> => {
-    setIsLoading(true);
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-      if (res.ok && data.user) {
-        setUser(data.user);
-        return true;
-      }
-      throw new Error(data.error || 'Login failed');
-    } finally {
-      setIsLoading(false);
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (res.ok && data.user) {
+      setUser(data.user);
+      return true;
     }
+    throw new Error(data.error || 'Login failed');
   };
 
   const logout = async () => {

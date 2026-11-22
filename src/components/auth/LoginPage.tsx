@@ -8,6 +8,8 @@ import InputAdornment from '@mui/material/InputAdornment';
 import IconButton from '@mui/material/IconButton';
 import MuiButton from '@mui/material/Button';
 import Alert from '@mui/material/Alert';
+import Card from '@mui/material/Card';
+import Box from '@mui/material/Box';
 import List from '@mui/material/List';
 import ListItemButton from '@mui/material/ListItemButton';
 import {
@@ -29,15 +31,9 @@ const DEMO_ACCOUNTS = [
   { role: 'Admin staff', name: 'Arun Kulkarni', email: 'arun.kulkarni@univ.edu', password: 'admin123', icon: UserCog },
 ];
 
-const ROLE_PILLS = [
-  { icon: BookOpen, label: 'Faculty', text: 'mark and lock lectures' },
-  { icon: GraduationCap, label: 'Students', text: 'track their standing' },
-  { icon: ShieldCheck, label: 'HODs', text: 'approve leave' },
-  { icon: UserCog, label: 'Admin', text: 'users and reports' },
-];
-
 export const LoginPage: React.FC = () => {
-  const { login, isLoading } = useAuth();
+  const { login } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -46,10 +42,12 @@ export const LoginPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setIsSubmitting(true);
     try {
       await login(email, password);
     } catch (err) {
       setError((err as Error).message || 'Invalid credentials');
+      setIsSubmitting(false);
     }
   };
 
@@ -61,58 +59,31 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white text-slate-800 grid grid-rows-[auto_1fr] lg:grid-rows-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(420px,1fr)]">
-      {/* Left: product story over the campus photo */}
-      <section className="relative overflow-hidden border-b lg:border-b-0 lg:border-r border-slate-200">
-        {/* Campus photo under a white wash so the headline stays readable */}
-        <Image
-          src="/images/iit-bombay-main-building.jpg"
-          alt=""
-          fill
-          priority
-          sizes="(min-width: 1024px) 55vw, 100vw"
-          className="object-cover object-[60%_center]"
-        />
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,#fff_0%,rgba(255,255,255,.97)_38%,rgba(255,255,255,.75)_58%,rgba(255,255,255,.1)_100%)] max-lg:bg-[linear-gradient(180deg,rgba(255,255,255,.75)_0%,rgba(255,255,255,.95)_45%,#fff_100%)]" />
-        <div className="relative flex flex-col h-full px-4 sm:px-10 lg:px-14 py-8 lg:py-12">
+    <Box component="main" sx={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', p: { xs: 2, sm: 4 } }}>
+      <Card
+        sx={{
+          width: '100%',
+          maxWidth: 1040,
+          p: { xs: 2.5, sm: 4 },
+          display: 'grid',
+          gap: { xs: 3, md: 5 },
+          gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1fr) minmax(0, 1fr)' },
+        }}
+      >
+        {/* Sign-in */}
+        <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           <div className="flex items-center gap-2.5 font-bold text-slate-800">
-            <span className="w-9 h-9 rounded-lg bg-brand-100 text-brand-600 flex items-center justify-center">
+            <span className="w-9 h-9 rounded-lg bg-brand-600 text-white flex items-center justify-center">
               <GraduationCap className="w-5 h-5" />
             </span>
             AttendEASE365
           </div>
 
-          <div className="mt-12 lg:my-auto max-w-2xl">
-            <h1 className="text-[clamp(2.4rem,5.4vw,4.75rem)] leading-[1.02] tracking-[-0.035em] font-bold">
-              Every lecture,
-              <span className="block pl-[0.6em] text-brand-600">on record.</span>
-            </h1>
-            <p className="mt-6 text-lg leading-relaxed text-slate-500 max-w-[38rem]">
-              Faculty mark and lock each session, students see where they stand, and HODs approve
-              leave. <mark className="good">75% compliance</mark> is checked on every submission, and
-              every change lands in the <mark className="good">audit trail</mark>.
-            </p>
-            <ul className="mt-7 flex flex-wrap gap-2.5">
-              {ROLE_PILLS.map(({ icon: Icon, label, text }) => (
-                <li
-                  key={label}
-                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-slate-200 text-sm shadow-2xs"
-                >
-                  <Icon className="w-4 h-4 text-brand-600" />
-                  <strong className="font-semibold text-brand-600">{label}</strong>
-                  <span className="text-slate-500">{text}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      {/* Right: sign-in */}
-      <section className="flex flex-col lg:justify-center px-4 sm:px-10 py-10 lg:py-12 bg-slate-50 lg:bg-white">
-        <div className="w-full max-w-sm mx-auto">
-          <h2 className="text-3xl font-bold tracking-[-0.03em]">Sign in</h2>
-          <p className="mt-1.5 text-sm text-slate-500">Use your institutional email and password.</p>
+          <h1 className="mt-8 text-3xl font-bold tracking-[-0.03em]">Sign in</h1>
+          <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
+            Every lecture, on record. Faculty lock each session, students see where they stand, and HODs approve
+            leave.
+          </p>
 
           {error && (
             <Alert severity="error" sx={{ mt: 3 }}>
@@ -181,7 +152,7 @@ export const LoginPage: React.FC = () => {
               variant="contained"
               size="large"
               fullWidth
-              loading={isLoading}
+              loading={isSubmitting}
               endIcon={<ArrowRight size={16} />}
               sx={{ minHeight: 44 }}
             >
@@ -192,7 +163,7 @@ export const LoginPage: React.FC = () => {
           {/* Prod shows this only with NEXT_PUBLIC_DEMO_MODE=true; pair it with SEED_DEMO_DATA=true so the accounts exist. */}
           {(process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEMO_MODE === 'true') && (
             <div className="mt-8 pt-6 border-t border-slate-200">
-              <h3 className="text-sm font-semibold text-slate-800">Demo accounts</h3>
+              <h2 className="text-sm font-semibold text-slate-800">Demo accounts</h2>
               <p className="text-2xs text-slate-500 mt-0.5">
                 Try any role. Click one to fill the form, then sign in.
                 {process.env.NEXT_PUBLIC_DEMO_MODE === 'true' && " Read-only: changes aren't saved."}
@@ -204,7 +175,7 @@ export const LoginPage: React.FC = () => {
                     divider={idx < DEMO_ACCOUNTS.length - 1}
                     selected={email === e}
                     onClick={() => fillDemo(e, p)}
-                    sx={{ gap: 1.5, py: 1.25 }}
+                    sx={{ gap: 1.5, py: 1.25, my: 0, borderRadius: 0 }}
                   >
                     <span className="w-8 h-8 shrink-0 rounded-lg bg-brand-100 text-brand-600 flex items-center justify-center">
                       <Icon className="w-4 h-4" />
@@ -221,8 +192,28 @@ export const LoginPage: React.FC = () => {
               </List>
             </div>
           )}
-        </div>
-      </section>
-    </div>
+        </Box>
+
+        {/* Campus photo: above the form on phones, beside it from md up */}
+        <Box
+          sx={{
+            position: 'relative',
+            order: { xs: -1, md: 0 },
+            minHeight: { xs: 160, md: 480 },
+            borderRadius: 3,
+            overflow: 'hidden',
+          }}
+        >
+          <Image
+            src="/images/iit-bombay-main-building.jpg"
+            alt=""
+            fill
+            priority
+            sizes="(min-width: 1040px) 480px, (min-width: 900px) 45vw, 100vw"
+            className="object-cover"
+          />
+        </Box>
+      </Card>
+    </Box>
   );
 };

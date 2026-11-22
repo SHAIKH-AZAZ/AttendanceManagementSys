@@ -274,56 +274,6 @@ export function StatusBadge({ status }: { status: AttendanceStatus }) {
   return <Badge tone={s.tone}>{s.label}</Badge>;
 }
 
-/**
- * One-tap attendance picker (P / A / L / E / M / O). The selected button is
- * filled with that status's colour.
- */
-export function AttendancePicker({
-  value,
-  onChange,
-  label,
-  fullWidth,
-}: {
-  value: AttendanceStatus;
-  onChange: (s: AttendanceStatus) => void;
-  label: string;
-  fullWidth?: boolean;
-}) {
-  return (
-    <ToggleButtonGroup
-      exclusive
-      size="small"
-      value={value}
-      onChange={(_, v: AttendanceStatus | null) => v && onChange(v)}
-      aria-label={label}
-      fullWidth={fullWidth}
-      sx={{ gap: 0.5, '& .MuiToggleButtonGroup-grouped': { border: 0, borderRadius: '6px !important', m: 0 } }}
-    >
-      {ATTENDANCE_ORDER.map((k) => {
-        const s = ATTENDANCE_STATUS[k];
-        return (
-          <ToggleButton
-            key={k}
-            value={k}
-            aria-label={s.label}
-            title={s.label}
-            sx={{
-              minWidth: 32,
-              height: fullWidth ? 40 : 32,
-              fontWeight: 700,
-              color: 'text.secondary',
-              bgcolor: TOKENS.fill,
-              '&.Mui-selected, &.Mui-selected:hover': { bgcolor: s.color, color: '#fff' },
-            }}
-          >
-            {s.short}
-          </ToggleButton>
-        );
-      })}
-    </ToggleButtonGroup>
-  );
-}
-
 /* ------------------------------------------------------------------ Leave */
 
 export const LEAVE_TYPES: Record<LeaveType, { label: string; hint: string }> = {
