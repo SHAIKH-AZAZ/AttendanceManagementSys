@@ -6,6 +6,7 @@ import { useMeta, type MetaSection } from '@/hooks/useMeta';
 import { MarksTab } from './MarksTab';
 import { AssignmentsTab } from './AssignmentsTab';
 import { ScheduleTab } from '@/components/schedule/ScheduleTab';
+import { AttendanceRoster } from './AttendanceRoster';
 import type { PortalProps } from '@/lib/navigation';
 import { ATTENDANCE_ENTRY_WINDOW_DAYS, daysBefore, todayIST } from '@/lib/rules';
 import type { AttendanceRecord, AttendanceStatus, LectureSession, StudentComplianceStats } from '@/types';
@@ -24,16 +25,12 @@ import {
   ProgressBar,
   SegmentedControl,
   StatCard,
-  StatusBadge,
   formatDate,
   lectureName,
   SelectField,
-  SearchField,
-  AttendancePicker,
   DateInput,
 } from '@/components/ui';
 import TextField from '@mui/material/TextField';
-import ButtonBase from '@mui/material/ButtonBase';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -49,13 +46,11 @@ import {
   CalendarPlus,
   CheckCircle2,
   ClipboardCheck,
-  Copy,
   FileClock,
   Lock,
   Save,
-  Search,
+  Undo2,
   Users,
-  XCircle,
 } from 'lucide-react';
 
 const today = todayIST; // YYYY-MM-DD in India
@@ -78,8 +73,8 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
   const [busy, setBusy] = useState(false);
   const [confirmLock, setConfirmLock] = useState(false);
   const [pendingNav, setPendingNav] = useState<(() => void) | null>(null);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<AttendanceStatus | 'ALL'>('ALL');
+  /** One-step undo for bulk changes (all present/absent, copy, quick entry). */
+  const [undo, setUndo] = useState<{ records: AttendanceRecord[]; message: string } | null>(null);
   const [newDate, setNewDate] = useState(today());
   const [newTitle, setNewTitle] = useState('');
   const [newPeriods, setNewPeriods] = useState('1');
@@ -146,8 +141,7 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
     setOpenSessionId(s.id);
     setRecords(structuredClone(s.records));
     setDirty(false);
-    setSearch('');
-    setStatusFilter('ALL');
+    setUndo(null);
     setNotice(null);
   };
 
@@ -166,6 +160,16 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
       setNewPeriods(String(section(sid)?.defaultPeriods ?? 1));
       setActiveTab('faculty-attendance');
     });
+
+  // Arriving at Take attendance for a class with an open draft: open the draft
+  // instead of offering a new lecture (starting one would be refused anyway).
+  useEffect(() => {
+    if (activeTab !== 'faculty-attendance' || dirty) return;
+    if (openSession?.sectionId === sectionId) return;
+    const draft = sessions.find((s) => s.sectionId === sectionId && !s.isLocked);
+    if (draft) openLecture(draft);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- openLecture is recreated each render
+  }, [activeTab, sectionId, sessions, openSession, dirty]);
 
   const startLecture = async () => {
     setBusy(true);
@@ -192,16 +196,33 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
     }
   };
 
+  // A single change ends the Undo offer: undoing a bulk change afterwards would also revert it.
   const setStatus = (studentId: string, status: AttendanceStatus) => {
     setRecords((prev) => prev.map((r) => (r.studentId === studentId ? { ...r, status } : r)));
+    setUndo(null);
     setDirty(true);
   };
   const setRemark = (studentId: string, remarks: string) => {
     setRecords((prev) => prev.map((r) => (r.studentId === studentId ? { ...r, remarks } : r)));
+    setUndo(null);
     setDirty(true);
   };
-  const markAll = (status: AttendanceStatus) => {
-    setRecords((prev) => prev.map((r) => ({ ...r, status })));
+  /** Apply a bulk change and remember the marks before it, for Undo. */
+  const bulk = (message: string, change: (r: AttendanceRecord) => AttendanceRecord) => {
+    setUndo({ records, message });
+    setRecords((prev) => prev.map(change));
+    setDirty(true);
+  };
+  const markAll = (status: AttendanceStatus) =>
+    bulk(`Marked everyone ${ATTENDANCE_STATUS[status].label.toLowerCase()}.`, (r) => ({ ...r, status }));
+  const markMany = (ids: string[], status: AttendanceStatus, message: string) => {
+    const set = new Set(ids);
+    bulk(message, (r) => (set.has(r.studentId) ? { ...r, status } : r));
+  };
+  const undoBulk = () => {
+    if (!undo) return;
+    setRecords(undo.records);
+    setUndo(null);
     setDirty(true);
   };
 
@@ -212,9 +233,9 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
       const res = await fetch(`/api/sessions/${openSession.id}/copy-previous`, { method: 'POST' });
       const data = await res.json();
       if (res.ok) {
+        setUndo({ records, message: 'Copied marks from the last locked lecture. Review, then save.' });
         setRecords(data.records);
         setDirty(true);
-        setNotice({ tone: 'info', text: 'Copied marks from the last locked lecture. Review, then save.' });
       } else setNotice({ tone: 'error', text: data.error || 'Nothing to copy.' });
     } finally {
       setBusy(false);
@@ -236,6 +257,7 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
         return;
       }
       setDirty(false);
+      setUndo(null);
       setConfirmLock(false);
       await loadSessions();
       setRecords(structuredClone(data.session.records));
@@ -255,15 +277,6 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
     records.forEach((r) => c[r.status]++);
     return c;
   }, [records]);
-
-  const visibleRecords = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return records.filter(
-      (r) =>
-        (statusFilter === 'ALL' || r.status === statusFilter) &&
-        (!q || r.studentName.toLowerCase().includes(q) || r.enrollmentNumber.toLowerCase().includes(q))
-    );
-  }, [records, search, statusFilter]);
 
   if (!meta) {
     return <Card><p className="text-sm text-slate-500">Loading your classes…</p></Card>;
@@ -437,7 +450,7 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
                   <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
                     <p className="text-xs text-slate-500">
                       {sessionsFor(sectionId)[0]
-                        ? `Previous: Lecture ${sessionsFor(sectionId)[0].sessionNumber} on ${formatDate(sessionsFor(sectionId)[0].lectureDate)}`
+                        ? `Last lecture: ${sessionsFor(sectionId)[0].sessionNumber} on ${formatDate(sessionsFor(sectionId)[0].lectureDate)}`
                         : 'This will be the first lecture for this class.'}
                     </p>
                     <Button variant="primary" icon={CalendarPlus} loading={busy} disabled={!newDate} onClick={startLecture}>
@@ -450,175 +463,75 @@ export const FacultyPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab, 
           ) : (
             /* Marking / read-only step */
             <Card padded={false}>
-              <div className="p-5 border-b border-slate-200 flex flex-wrap items-start justify-between gap-3">
+              <div className="p-5 flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-base font-semibold text-slate-800">
-                      {lectureName(openSession)}
-                    </h2>
+                    <h2 className="text-base font-semibold text-slate-800">{lectureName(openSession)}</h2>
                     {openSession.isLocked ? (
                       <Badge icon={Lock}>Locked</Badge>
                     ) : (
                       <Badge tone="warn" icon={FileClock}>Draft</Badge>
                     )}
                     <Badge>{openSession.periods} {openSession.periods === 1 ? 'period' : 'periods'}</Badge>
-                    {dirty && <Badge tone="accent">Unsaved changes</Badge>}
                   </div>
                   <p className="text-sm text-slate-500 mt-0.5">
                     {formatDate(openSession.lectureDate)} · {classLabel(openSession.sectionId)}
                   </p>
                 </div>
-                {openSession.isLocked ? (
+                {openSession.isLocked && (
                   <Button variant="secondary" icon={draftFor(sectionId) ? ArrowLeft : CalendarPlus} onClick={() => goTakeAttendance(sectionId)}>
                     {draftFor(sectionId) ? 'Open draft' : 'Start next lecture'}
                   </Button>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    <Button icon={Save} loading={busy} disabled={!dirty} onClick={() => saveOrSubmit('draft')}>
-                      Save draft
-                    </Button>
-                    <Button variant="primary" icon={Lock} disabled={busy || records.length === 0} onClick={() => setConfirmLock(true)}>
-                      Submit and lock
-                    </Button>
-                  </div>
                 )}
               </div>
 
               {openSession.isLocked && (
-                <Notice tone="info" className="m-5 mb-0">
+                <Notice tone="info" className="mx-5 mb-4">
                   Submitted {openSession.submittedAt ? `on ${new Date(openSession.submittedAt).toLocaleString('en-IN')}` : 'earlier'}.
                   Locked lectures can&apos;t be edited; corrections go through the HOD.
                 </Notice>
               )}
 
-              {/* Counts */}
-              <div className="p-5 grid grid-cols-3 sm:grid-cols-7 gap-2">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-center">
-                  <div className="text-2xs text-slate-500">Total</div>
-                  <div className="text-lg font-bold text-slate-800">{records.length}</div>
-                </div>
-                {ATTENDANCE_ORDER.map((k) => (
-                  <ButtonBase
-                    key={k}
-                    onClick={() => setStatusFilter(statusFilter === k ? 'ALL' : k)}
-                    aria-pressed={statusFilter === k}
-                    title={`Show only ${ATTENDANCE_STATUS[k].label.toLowerCase()}`}
-                    className={`rounded-lg border p-2 text-center transition-colors ${
-                      statusFilter === k ? 'border-brand-600 ring-2 ring-brand-100' : 'border-slate-200 hover:border-slate-300'
-                    }`}
-                    sx={{ display: 'block', borderRadius: 2 }}
-                  >
-                    <div className="text-2xs text-slate-500">{ATTENDANCE_STATUS[k].label}</div>
-                    <div className="text-lg font-bold" style={{ color: counts[k] ? ATTENDANCE_STATUS[k].color : undefined }}>{counts[k]}</div>
-                  </ButtonBase>
-                ))}
-              </div>
+              <AttendanceRoster
+                key={openSession.id}
+                records={records}
+                locked={openSession.isLocked}
+                busy={busy}
+                onStatus={setStatus}
+                onRemark={setRemark}
+                onMarkMany={markMany}
+                onMarkAll={markAll}
+                onCopyPrevious={copyPrevious}
+              />
 
-              <p className="sm:hidden px-5 -mt-2 pb-3 text-2xs text-slate-500">
-                P present · A absent · L late · E excused · M medical · O on duty
-              </p>
-
-              {/* Toolbar */}
-              <div className="px-5 pb-4 flex flex-wrap items-center gap-2">
-                <SearchField value={search} onChange={setSearch} placeholder="Search name or roll number" ariaLabel="Search students" />
-                {!openSession.isLocked && (
-                  <>
-                    <Button variant="success" size="sm" icon={CheckCircle2} onClick={() => markAll('PRESENT')}>
-                      All present
-                    </Button>
-                    <Button variant="danger" size="sm" icon={XCircle} onClick={() => markAll('ABSENT')}>
-                      All absent
-                    </Button>
-                    <Button size="sm" icon={Copy} disabled={busy} onClick={copyPrevious}>
-                      Copy last lecture
-                    </Button>
-                  </>
-                )}
-              </div>
-
-              {records.length === 0 ? (
-                <EmptyState icon={Users} title="No students on this lecture" description="This class had no enrolled students when the lecture was created." />
-              ) : visibleRecords.length === 0 ? (
-                <EmptyState icon={Search} title="No students match" description="Clear the search or the status filter." />
-              ) : (
-                <>
-                {/* Phones: one card per student, buttons below the name */}
-                <ul className="sm:hidden divide-y divide-slate-100 border-t border-slate-200">
-                  {visibleRecords.map((r) => (
-                    <li key={r.studentId} className={`px-4 py-3 ${r.status === 'ABSENT' ? 'bg-rose-50/40' : ''}`}>
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="font-semibold text-slate-800">{r.studentName}</span>
-                        <span className="font-mono text-xs text-slate-500">{r.enrollmentNumber}</span>
-                      </div>
-                      {openSession.isLocked ? (
-                        <div className="mt-1.5 flex items-center gap-2">
-                          <StatusBadge status={r.status} />
-                          {r.remarks && <span className="text-xs text-slate-500">{r.remarks}</span>}
-                        </div>
-                      ) : (
-                        <div className="mt-2">
-                          <AttendancePicker fullWidth value={r.status} onChange={(k) => setStatus(r.studentId, k)} label={`Status for ${r.studentName}`} />
-                        </div>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-                <TableContainer className="hidden sm:block border-t border-slate-200">
-                  <Table size="small" sx={{ minWidth: 720 }}>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell sx={{ pl: 2.5 }}>Roll no.</TableCell>
-                        <TableCell>Student</TableCell>
-                        <TableCell>{openSession.isLocked ? 'Status' : 'Mark'}</TableCell>
-                        <TableCell sx={{ pr: 2.5 }}>Remarks</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {visibleRecords.map((r) => (
-                        <TableRow key={r.studentId} hover sx={r.status === 'ABSENT' ? { bgcolor: 'rgba(253,236,231,.4)' } : undefined}>
-                          <TableCell sx={{ pl: 2.5, fontFamily: 'monospace', fontSize: 12, color: 'text.secondary' }}>{r.enrollmentNumber}</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>{r.studentName}</TableCell>
-                          <TableCell>
-                            {openSession.isLocked ? (
-                              <StatusBadge status={r.status} />
-                            ) : (
-                              <AttendancePicker value={r.status} onChange={(k) => setStatus(r.studentId, k)} label={`Status for ${r.studentName}`} />
-                            )}
-                          </TableCell>
-                          <TableCell sx={{ pr: 2.5 }}>
-                            {openSession.isLocked ? (
-                              <span className="text-slate-500">{r.remarks || '—'}</span>
-                            ) : (
-                              <TextField
-                                value={r.remarks ?? ''}
-                                onChange={(e) => setRemark(r.studentId, e.target.value)}
-                                placeholder="Optional"
-                                slotProps={{ htmlInput: { 'aria-label': `Remark for ${r.studentName}`, maxLength: 200, style: { paddingBlock: 6 } } }}
-                              />
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-                </>
-              )}
-
-              {/* Phones: keep the actions reachable at the bottom of a long roster */}
+              {/* Save and submit stay reachable however long the roster is */}
               {!openSession.isLocked && records.length > 0 && (
-                <div className="sm:hidden sticky bottom-0 z-10 flex items-center gap-2 p-3 bg-white border-t border-slate-200 rounded-b-2xl">
-                  <span className="flex-1 text-xs text-slate-600">
-                    <strong className="text-emerald-700">{counts.PRESENT}</strong> P ·{' '}
-                    <strong className="text-rose-600">{counts.ABSENT}</strong> A
-                    {dirty && <span className="block text-brand-700">Unsaved</span>}
-                  </span>
-                  <Button size="sm" icon={Save} loading={busy} disabled={!dirty} onClick={() => saveOrSubmit('draft')}>
-                    Save
-                  </Button>
-                  <Button size="sm" variant="primary" icon={Lock} disabled={busy} onClick={() => setConfirmLock(true)}>
-                    Submit
-                  </Button>
+                <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3 bg-white/95 backdrop-blur border-t border-slate-200 rounded-b-2xl pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                  <p className="flex-1 min-w-[12rem] text-sm text-slate-600">
+                    <strong className="text-emerald-700">{counts.PRESENT}</strong> present ·{' '}
+                    <strong className="text-rose-600">{counts.ABSENT}</strong> absent
+                    {records.length - counts.PRESENT - counts.ABSENT > 0 && (
+                      <> · <strong className="text-slate-800">{records.length - counts.PRESENT - counts.ABSENT}</strong> other</>
+                    )}
+                    <span className="text-slate-400"> of {records.length}</span>
+                    {dirty && <span className="block text-2xs font-semibold text-brand-700">Unsaved changes</span>}
+                  </p>
+                  {undo && (
+                    <span className="flex items-center gap-1 text-sm text-slate-600">
+                      <output>{undo.message}</output>
+                      <Button size="sm" variant="ghost" icon={Undo2} onClick={undoBulk}>
+                        Undo
+                      </Button>
+                    </span>
+                  )}
+                  <div className="flex gap-2">
+                    <Button icon={Save} loading={busy} disabled={!dirty} onClick={() => saveOrSubmit('draft')}>
+                      Save draft
+                    </Button>
+                    <Button variant="primary" icon={Lock} disabled={busy} onClick={() => setConfirmLock(true)}>
+                      Submit and lock
+                    </Button>
+                  </div>
                 </div>
               )}
             </Card>

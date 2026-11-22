@@ -106,6 +106,23 @@ const theme = createTheme({
     MuiToggleButton: { styleOverrides: { root: { textTransform: 'none', fontWeight: 600 } } },
     MuiLinearProgress: { styleOverrides: { root: { height: 8, borderRadius: 999, backgroundColor: TOKENS.fill }, bar: { borderRadius: 999 } } },
     MuiMenu: { styleOverrides: { paper: { borderRadius: 12, boxShadow: TOKENS.shadowLift } } },
+    // Sidebar sections and other selectable rows: rounded, accent tint when selected.
+    MuiListItemButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+          marginBlock: 2,
+          paddingBlock: 8,
+          color: TOKENS.inkSoft,
+          '&:hover': { backgroundColor: TOKENS.fill, color: TOKENS.ink },
+          '&.Mui-selected, &.Mui-selected:hover': { backgroundColor: TOKENS.accentTint, color: TOKENS.accentInk },
+          '&.Mui-selected .MuiListItemIcon-root': { color: TOKENS.accent },
+          '&.Mui-focusVisible': { backgroundColor: TOKENS.fill },
+        },
+      },
+    },
+    MuiListItemIcon: { styleOverrides: { root: { minWidth: 34, color: 'inherit' } } },
+    MuiListItemText: { styleOverrides: { primary: { fontSize: '0.875rem', fontWeight: 600 } } },
     // Date & time pickers: same card look as menus, rounded time cells, sentence-case headings.
     MuiPickerPopper: { styleOverrides: { paper: { borderRadius: 12, boxShadow: TOKENS.shadowLift, border: `1px solid ${TOKENS.rule}` } } },
     MuiMultiSectionDigitalClockSection: { styleOverrides: { item: { borderRadius: 8, marginInline: 4, width: 'auto' } } },

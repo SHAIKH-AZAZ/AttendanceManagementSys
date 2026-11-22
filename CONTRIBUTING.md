@@ -72,7 +72,7 @@ If you change behaviour these scripts check, update the script in the same pull 
   - Use the shared kit in `src/components/ui` (built on MUI) before adding new components.
   - Use Tailwind for page layout.
   - Use `lucide-react` for icons.
-  - Before adding a tab, add it to `src/lib/navigation.ts`.
+  - Before adding a tab, add it to `src/lib/navigation.ts`. The sidebar reads it; give the tab an icon in `TAB_ICONS` in `src/components/layout/AppShell.tsx`.
 - **Dependencies:** add one only when a few lines of code can't do the job, and say why in the pull request.
 
 ## 6. Accessibility and layout
