@@ -97,7 +97,7 @@ export function FeesAdminTab({ meta, notify }: { meta: Meta; notify: (n: { tone:
     <>
       <PageHeader
         title="Fees"
-        description="Publish fees for a department and academic year. Students pay online (Razorpay test mode) and get a receipt."
+        description="Publish fees for a department and academic year. Students pay online through their choice of gateway (test mode) and get a receipt."
         actions={<Button variant="primary" icon={Plus} onClick={() => { setError(null); setAmountError(false); setAddOpen(true); }}>Add fee</Button>}
       />
 
