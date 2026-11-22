@@ -3,7 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { LoginPage } from '@/components/auth/LoginPage';
-import { Navbar } from '@/components/layout/Navbar';
+import { AppShell } from '@astryxdesign/core/AppShell';
+import { VStack } from '@astryxdesign/core/VStack';
+import { Spinner } from '@astryxdesign/core/Spinner';
+import { AppSideNav, AppTopNav } from '@/components/layout/Navbar';
 import { FacultyPortal } from '@/components/faculty/FacultyPortal';
 import { StudentPortal } from '@/components/student/StudentPortal';
 import { HODPortal } from '@/components/hod/HODPortal';
@@ -30,12 +33,9 @@ function DashboardContent() {
 
   if (isLoading) {
     return (
-      <output className="min-h-screen bg-white flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-brand-600 border-t-transparent rounded-full animate-spin motion-reduce:animate-none" />
-          <p className="text-sm text-slate-500">Loading your session…</p>
-        </div>
-      </output>
+      <VStack as="output" minHeight="100dvh" hAlign="center" vAlign="center">
+        <Spinner size="lg" label="Loading your session…" />
+      </VStack>
     );
   }
 
@@ -54,44 +54,14 @@ function DashboardContent() {
     onOpenUniversityReport: handleOpenUniversityReport,
   };
 
+  const nav = { currentUser: user, activeTab, setActiveTab };
+
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800">
-      {/* Top Navbar with onLogout */}
-      <Navbar
-        currentUser={user}
-        onLogout={logout}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-      />
-
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        {user.role === 'FACULTY' && (
-          <FacultyPortal {...portalProps} />
-        )}
-
-        {user.role === 'STUDENT' && (
-          <StudentPortal {...portalProps} />
-        )}
-
-        {user.role === 'HOD' && (
-          <HODPortal {...portalProps} />
-        )}
-
-        {user.role === 'ADMIN_STAFF' && (
-          <AdminPortal {...portalProps} />
-        )}
-      </main>
-
-      {/* Footer */}
-      <footer className="mt-auto border-t border-slate-200 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-1 text-2xs text-slate-500">
-          <span>
-            <span className="font-semibold text-slate-700">AttendEASE365</span> · Attendance and academic compliance
-          </span>
-          <span>Locked sessions · 75% threshold · Audit trail</span>
-        </div>
-      </footer>
+    <AppShell contentPadding={6} topNav={<AppTopNav {...nav} onLogout={logout} />} sideNav={<AppSideNav {...nav} />}>
+      {user.role === 'FACULTY' && <FacultyPortal {...portalProps} />}
+      {user.role === 'STUDENT' && <StudentPortal {...portalProps} />}
+      {user.role === 'HOD' && <HODPortal {...portalProps} />}
+      {user.role === 'ADMIN_STAFF' && <AdminPortal {...portalProps} />}
 
       {/* Official University Board Submission Modal */}
       {reportModalCourse && (
@@ -101,7 +71,7 @@ function DashboardContent() {
           onClose={() => setReportModalCourse(null)}
         />
       )}
-    </div>
+    </AppShell>
   );
 }
 

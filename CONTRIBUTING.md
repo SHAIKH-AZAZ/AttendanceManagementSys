@@ -68,11 +68,13 @@ If you change behaviour these scripts check, update the script in the same pull 
   - Enforce invariants with indexes, such as unique fields or one open draft per class.
   - Store money as integer paise.
 - **Audit log:** record every action that changes records for other people, such as admin actions, approvals and payments, with `dbService.addSystemAudit`.
-- **UI:**
-  - Use the shared kit in `src/components/ui` (built on MUI) before adding new components.
-  - Use Tailwind for page layout.
+- **UI:** the app is moving from MUI to [Astryx](https://github.com/meta/astryx), one area at a time.
+  - New UI uses Astryx components. The app shell (top bar, sidebar, sign-in) already does. Run `bunx astryx component <Name>` to read a component's props, and see the Astryx block in `AGENTS.md`.
+  - The portals and the shared kit in `src/components/ui` are still MUI. When you change one, either keep it MUI or migrate the whole component; don't mix both in one component.
+  - `src/app/layers.css` sets the CSS cascade-layer order (Astryx, MUI and Tailwind). It must stay the first import in `src/app/layout.tsx`. Keep global rules inside a layer, because unlayered CSS overrides every Astryx component.
+  - **Theme:** the `attendease` theme lives in `themes/attendease/`. Change colours, fonts and spacing with `bunx astryx experimental theme editor set attendease …`, not with `:root` variables. The editor regenerates `src/themes/`. Don't edit those files by hand; they're excluded from lint.
   - Use `lucide-react` for icons.
-  - Before adding a tab, add it to `src/lib/navigation.ts`.
+  - Before adding a tab, add it to `src/lib/navigation.ts`. The sidebar reads it; give the tab an icon in `TAB_ICONS` in `src/components/layout/Navbar.tsx`.
 - **Dependencies:** add one only when a few lines of code can't do the job, and say why in the pull request.
 
 ## 6. Accessibility and layout

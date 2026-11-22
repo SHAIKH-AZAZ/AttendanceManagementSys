@@ -1,4 +1,6 @@
-import type { Metadata } from 'next';
+// First: declares the cascade-layer order every other stylesheet relies on.
+import './layers.css';
+import type { Metadata, Viewport } from 'next';
 import { Plus_Jakarta_Sans } from 'next/font/google';
 import { AppRouterCacheProvider } from '@mui/material-nextjs/v16-appRouter';
 import { ThemeProvider } from '@mui/material/styles';
@@ -20,6 +22,9 @@ export const metadata: Metadata = {
     'Lecture attendance, leave approvals and 75% compliance tracking for faculty, students, HODs and administrators.',
 };
 
+// viewport-fit=cover lets the Astryx AppShell header extend under a phone's status bar.
+export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover' };
+
 export default function RootLayout({
   children,
 }: {
@@ -28,7 +33,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${jakarta.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="min-h-full flex flex-col font-sans">
-        {/* enableCssLayer puts MUI styles in @layer mui, ordered in globals.css so Tailwind utilities can still override them */}
+        {/* enableCssLayer puts MUI styles in @layer mui, ordered in layers.css (below Astryx) so Tailwind utilities can still override them */}
         <AppRouterCacheProvider options={{ enableCssLayer: true }}>
           <ThemeProvider theme={theme}>
             <CssBaseline />

@@ -3,24 +3,22 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
-import TextField from '@mui/material/TextField';
-import InputAdornment from '@mui/material/InputAdornment';
-import IconButton from '@mui/material/IconButton';
-import MuiButton from '@mui/material/Button';
-import Alert from '@mui/material/Alert';
-import List from '@mui/material/List';
-import ListItemButton from '@mui/material/ListItemButton';
-import {
-  ArrowRight,
-  BookOpen,
-  Eye,
-  EyeOff,
-  GraduationCap,
-  Lock,
-  Mail,
-  ShieldCheck,
-  UserCog,
-} from 'lucide-react';
+import { VStack, HStack, StackItem } from '@astryxdesign/core/Layout';
+import { Grid } from '@astryxdesign/core/Grid';
+import { Center } from '@astryxdesign/core/Center';
+import { Card } from '@astryxdesign/core/Card';
+import { Section } from '@astryxdesign/core/Section';
+import { Text } from '@astryxdesign/core/Text';
+import { Heading } from '@astryxdesign/core/Heading';
+import { Icon } from '@astryxdesign/core/Icon';
+import { NavIcon } from '@astryxdesign/core/NavIcon';
+import { TextInput } from '@astryxdesign/core/TextInput';
+import { CheckboxInput } from '@astryxdesign/core/CheckboxInput';
+import { Button } from '@astryxdesign/core/Button';
+import { Banner } from '@astryxdesign/core/Banner';
+import { Divider } from '@astryxdesign/core/Divider';
+import { List, ListItem } from '@astryxdesign/core/List';
+import { ArrowRight, BookOpen, GraduationCap, Lock, Mail, ShieldCheck, UserCog } from 'lucide-react';
 
 const DEMO_ACCOUNTS = [
   { role: 'Faculty', name: 'Prof. Rajesh Sharma', email: 'rajesh.sharma@univ.edu', password: 'faculty123', icon: BookOpen },
@@ -29,15 +27,35 @@ const DEMO_ACCOUNTS = [
   { role: 'Admin staff', name: 'Arun Kulkarni', email: 'arun.kulkarni@univ.edu', password: 'admin123', icon: UserCog },
 ];
 
-const ROLE_PILLS = [
-  { icon: BookOpen, label: 'Faculty', text: 'mark and lock lectures' },
-  { icon: GraduationCap, label: 'Students', text: 'track their standing' },
-  { icon: ShieldCheck, label: 'HODs', text: 'approve leave' },
-  { icon: UserCog, label: 'Admin', text: 'users and reports' },
-];
+const SHOW_DEMO = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+
+// From Astryx's login-split template. The grid holds two columns down to 2 × 240px + gap and
+// stacks below that; the container query (keyed to the card, not the window) then moves the
+// photo above the form and tightens the inset. A plain <style> tag needs no CSS compiler.
+const LOGIN_SPLIT_CSS = `
+.login-split-grid {
+  container-type: inline-size;
+  container-name: login-split;
+  padding: var(--spacing-8);
+}
+.login-split-image {
+  width: 100%;
+  order: 0;
+}
+@container login-split (max-width: 511px) {
+  .login-split-grid {
+    padding: var(--spacing-4);
+  }
+  .login-split-image {
+    order: -1;
+    height: 160px;
+  }
+}
+`;
 
 export const LoginPage: React.FC = () => {
-  const { login, isLoading } = useAuth();
+  const { login } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -46,10 +64,12 @@ export const LoginPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setIsSubmitting(true);
     try {
       await login(email, password);
     } catch (err) {
       setError((err as Error).message || 'Invalid credentials');
+      setIsSubmitting(false);
     }
   };
 
@@ -61,168 +81,114 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white text-slate-800 grid grid-rows-[auto_1fr] lg:grid-rows-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(420px,1fr)]">
-      {/* Left: product story over the campus photo */}
-      <section className="relative overflow-hidden border-b lg:border-b-0 lg:border-r border-slate-200">
-        {/* Campus photo under a white wash so the headline stays readable */}
-        <Image
-          src="/images/iit-bombay-main-building.jpg"
-          alt=""
-          fill
-          priority
-          sizes="(min-width: 1024px) 55vw, 100vw"
-          className="object-cover object-[60%_center]"
-        />
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,#fff_0%,rgba(255,255,255,.97)_38%,rgba(255,255,255,.75)_58%,rgba(255,255,255,.1)_100%)] max-lg:bg-[linear-gradient(180deg,rgba(255,255,255,.75)_0%,rgba(255,255,255,.95)_45%,#fff_100%)]" />
-        <div className="relative flex flex-col h-full px-4 sm:px-10 lg:px-14 py-8 lg:py-12">
-          <div className="flex items-center gap-2.5 font-bold text-slate-800">
-            <span className="w-9 h-9 rounded-lg bg-brand-100 text-brand-600 flex items-center justify-center">
-              <GraduationCap className="w-5 h-5" />
-            </span>
-            AttendEASE365
-          </div>
+    <main>
+      <Center axis="both" padding={4} minHeight="100dvh">
+        <style>{LOGIN_SPLIT_CSS}</style>
+        <Card padding={0} width="100%" maxWidth={1040}>
+          <Grid columns={{ minWidth: 240, repeat: 'fit' }} gap={8} align="stretch" className="login-split-grid">
+            {/* Sign-in */}
+            <Section variant="transparent" padding={0} height="100%">
+              <VStack gap={6} height="100%">
+                <HStack gap={2} vAlign="center">
+                  <NavIcon icon={<Icon icon={GraduationCap} size="sm" />} />
+                  <Text weight="bold">AttendEASE365</Text>
+                </HStack>
 
-          <div className="mt-12 lg:my-auto max-w-2xl">
-            <h1 className="text-[clamp(2.4rem,5.4vw,4.75rem)] leading-[1.02] tracking-[-0.035em] font-bold">
-              Every lecture,
-              <span className="block pl-[0.6em] text-brand-600">on record.</span>
-            </h1>
-            <p className="mt-6 text-lg leading-relaxed text-slate-500 max-w-[38rem]">
-              Faculty mark and lock each session, students see where they stand, and HODs approve
-              leave. <mark className="good">75% compliance</mark> is checked on every submission, and
-              every change lands in the <mark className="good">audit trail</mark>.
-            </p>
-            <ul className="mt-7 flex flex-wrap gap-2.5">
-              {ROLE_PILLS.map(({ icon: Icon, label, text }) => (
-                <li
-                  key={label}
-                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-slate-200 text-sm shadow-2xs"
-                >
-                  <Icon className="w-4 h-4 text-brand-600" />
-                  <strong className="font-semibold text-brand-600">{label}</strong>
-                  <span className="text-slate-500">{text}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </section>
+                <StackItem size="fill">
+                  <VStack gap={5} width="100%">
+                    <VStack gap={1}>
+                      <Heading level={1}>Sign in</Heading>
+                      <Text color="secondary">
+                        Every lecture, on record. Faculty lock each session, students see where they stand, and
+                        HODs approve leave.
+                      </Text>
+                    </VStack>
 
-      {/* Right: sign-in */}
-      <section className="flex flex-col lg:justify-center px-4 sm:px-10 py-10 lg:py-12 bg-slate-50 lg:bg-white">
-        <div className="w-full max-w-sm mx-auto">
-          <h2 className="text-3xl font-bold tracking-[-0.03em]">Sign in</h2>
-          <p className="mt-1.5 text-sm text-slate-500">Use your institutional email and password.</p>
+                    {error && <Banner role="alert" status="error" title={error} />}
 
-          {error && (
-            <Alert severity="error" sx={{ mt: 3 }}>
-              {error}
-            </Alert>
-          )}
+                    <form onSubmit={handleSubmit}>
+                      <VStack gap={3}>
+                        <TextInput
+                          label="Email"
+                          type="email"
+                          htmlName="email"
+                          autoComplete="username"
+                          placeholder="name@univ.edu"
+                          startIcon={Mail}
+                          isRequired
+                          size="lg"
+                          value={email}
+                          onChange={setEmail}
+                        />
+                        <TextInput
+                          label="Password"
+                          type={showPassword ? 'text' : 'password'}
+                          htmlName="password"
+                          autoComplete="current-password"
+                          startIcon={Lock}
+                          isRequired
+                          size="lg"
+                          value={password}
+                          onChange={setPassword}
+                        />
+                        <CheckboxInput label="Show password" value={showPassword} onChange={setShowPassword} />
+                        <Button
+                          type="submit"
+                          label="Sign in"
+                          variant="primary"
+                          size="lg"
+                          isLoading={isSubmitting}
+                          endContent={<Icon icon={ArrowRight} />}
+                        />
+                      </VStack>
+                    </form>
 
-          <form className="mt-6 flex flex-col gap-4" onSubmit={handleSubmit}>
-            <TextField
-              id="email"
-              name="email"
-              type="email"
-              label="Email"
-              autoComplete="username"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@univ.edu"
-              size="medium"
-              slotProps={{
-                inputLabel: { shrink: true },
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Mail size={16} />
-                    </InputAdornment>
-                  ),
-                },
-              }}
-            />
-            <TextField
-              id="password"
-              name="password"
-              type={showPassword ? 'text' : 'password'}
-              label="Password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              size="medium"
-              slotProps={{
-                inputLabel: { shrink: true },
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Lock size={16} />
-                    </InputAdornment>
-                  ),
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={() => setShowPassword((v) => !v)}
-                        aria-label={showPassword ? 'Hide password' : 'Show password'}
-                        edge="end"
-                        size="small"
-                      >
-                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                },
-              }}
-            />
-            <MuiButton
-              type="submit"
-              variant="contained"
-              size="large"
-              fullWidth
-              loading={isLoading}
-              endIcon={<ArrowRight size={16} />}
-              sx={{ minHeight: 44 }}
-            >
-              Sign in
-            </MuiButton>
-          </form>
+                    {/* Prod shows this only with NEXT_PUBLIC_DEMO_MODE=true; pair it with SEED_DEMO_DATA=true so the accounts exist. */}
+                    {SHOW_DEMO && (
+                      <VStack gap={2}>
+                        <Divider />
+                        <VStack gap={0.5}>
+                          <Heading level={2}>Demo accounts</Heading>
+                          <Text type="supporting" color="secondary">
+                            Pick a role to fill the form, then sign in.
+                            {process.env.NEXT_PUBLIC_DEMO_MODE === 'true' && " Read-only: changes aren't saved."}
+                          </Text>
+                        </VStack>
+                        <List hasDividers density="compact" edge="flush">
+                          {DEMO_ACCOUNTS.map(({ role, name, email: e, password: p, icon }) => (
+                            <ListItem
+                              key={e}
+                              startContent={<Icon icon={icon} color="accent" />}
+                              label={role}
+                              description={`${name} · ${e}`}
+                              endContent={<Icon icon={ArrowRight} color="secondary" size="sm" />}
+                              isSelected={email === e}
+                              onClick={() => fillDemo(e, p)}
+                            />
+                          ))}
+                        </List>
+                      </VStack>
+                    )}
+                  </VStack>
+                </StackItem>
+              </VStack>
+            </Section>
 
-          {/* Prod shows this only with NEXT_PUBLIC_DEMO_MODE=true; pair it with SEED_DEMO_DATA=true so the accounts exist. */}
-          {(process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_DEMO_MODE === 'true') && (
-            <div className="mt-8 pt-6 border-t border-slate-200">
-              <h3 className="text-sm font-semibold text-slate-800">Demo accounts</h3>
-              <p className="text-2xs text-slate-500 mt-0.5">
-                Try any role. Click one to fill the form, then sign in.
-                {process.env.NEXT_PUBLIC_DEMO_MODE === 'true' && " Read-only: changes aren't saved."}
-              </p>
-              <List disablePadding className="mt-3 border border-slate-200 rounded-xl bg-white overflow-hidden">
-                {DEMO_ACCOUNTS.map(({ role, name, email: e, password: p, icon: Icon }, idx) => (
-                  <ListItemButton
-                    key={e}
-                    divider={idx < DEMO_ACCOUNTS.length - 1}
-                    selected={email === e}
-                    onClick={() => fillDemo(e, p)}
-                    sx={{ gap: 1.5, py: 1.25 }}
-                  >
-                    <span className="w-8 h-8 shrink-0 rounded-lg bg-brand-100 text-brand-600 flex items-center justify-center">
-                      <Icon className="w-4 h-4" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold text-slate-800">{role}</span>
-                      <span className="block text-2xs text-slate-500 truncate">
-                        {name} · {e}
-                      </span>
-                    </span>
-                    <ArrowRight className="w-4 h-4 text-slate-400" />
-                  </ListItemButton>
-                ))}
-              </List>
-            </div>
-          )}
-        </div>
-      </section>
-    </div>
+            {/* Campus photo; the transparent Card clips it to rounded corners. */}
+            <Card variant="transparent" padding={0} width="100%" height="100%" className="login-split-image">
+              <Image
+                src="/images/iit-bombay-main-building.jpg"
+                alt=""
+                width={2000}
+                height={1500}
+                priority
+                sizes="(min-width: 1040px) 480px, 100vw"
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            </Card>
+          </Grid>
+        </Card>
+      </Center>
+    </main>
   );
 };

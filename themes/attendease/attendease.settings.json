@@ -1,0 +1,33 @@
+{
+  "name": "attendease",
+  "like": "neutral",
+  "mode": "light-only",
+  "settings": [
+    {
+      "thing": "accent",
+      "value": "#1D4ED8",
+      "source": "dial"
+    },
+    {
+      "thing": "font",
+      "value": "\"Plus Jakarta Sans\", \"Plus Jakarta Sans Fallback\", ui-sans-serif, system-ui, sans-serif",
+      "source": "dial"
+    },
+    {
+      "thing": "background-color",
+      "value": "var(--color-accent-muted)",
+      "source": "property",
+      "on": "side-nav-item",
+      "state": "selected"
+    },
+    {
+      "thing": "color",
+      "value": "var(--color-text-accent)",
+      "source": "property",
+      "on": "side-nav-item",
+      "state": "selected"
+    }
+  ],
+  "lifted": [],
+  "palette": "7bdbaaa70d8ab45adb5baac258e08b50c3c0ad46c7306d34217a65f79186f9d0"
+}

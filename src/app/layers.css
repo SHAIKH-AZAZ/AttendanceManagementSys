@@ -1,0 +1,11 @@
+/*
+ * Cascade-layer order for the whole app. Imported first in layout.tsx: a layer's
+ * rank is set by the first stylesheet that names it, and Next.js hoists CSS imports.
+ *   reset         Astryx's :where() reset
+ *   theme, base   Tailwind theme variables and preflight
+ *   mui           MUI components (enableCssLayer), still used by the un-migrated portals
+ *   astryx-base   Astryx component styles
+ *   astryx-theme  the attendease theme (src/themes/attendease)
+ *   components, utilities  app rules and Tailwind utilities, which may override components
+ */
+@layer reset, theme, base, mui, astryx-base, astryx-theme, components, utilities;

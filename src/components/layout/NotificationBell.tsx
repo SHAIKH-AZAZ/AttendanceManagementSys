@@ -1,17 +1,16 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import IconButton from '@mui/material/IconButton';
-import MuiBadge from '@mui/material/Badge';
-import Menu from '@mui/material/Menu';
-import MenuItem from '@mui/material/MenuItem';
-import Typography from '@mui/material/Typography';
-import Box from '@mui/material/Box';
-import Divider from '@mui/material/Divider';
-import Button from '@mui/material/Button';
-import { Bell } from 'lucide-react';
+import { Popover } from '@astryxdesign/core/Popover';
+import { Button } from '@astryxdesign/core/Button';
+import { Badge } from '@astryxdesign/core/Badge';
+import { Icon } from '@astryxdesign/core/Icon';
+import { List, ListItem } from '@astryxdesign/core/List';
+import { HStack } from '@astryxdesign/core/HStack';
+import { VStack } from '@astryxdesign/core/VStack';
+import { Text } from '@astryxdesign/core/Text';
+import { Bell, Dot } from 'lucide-react';
 import type { AppNotification } from '@/types';
-import { TOKENS } from '@/theme';
 
 const timeAgo = (iso: string) => {
   const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
@@ -24,7 +23,7 @@ const timeAgo = (iso: string) => {
 
 /** Bell with unread count; lists the latest notifications and opens the related tab. */
 export function NotificationBell({ onOpenTab }: { onOpenTab: (tab: string) => void }) {
-  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
   const [items, setItems] = useState<AppNotification[]>([]);
   const [unread, setUnread] = useState(0);
 
@@ -52,72 +51,66 @@ export function NotificationBell({ onOpenTab }: { onOpenTab: (tab: string) => vo
   };
 
   return (
-    <>
-      <IconButton
-        aria-label={unread ? `Notifications, ${unread} unread` : 'Notifications'}
-        onClick={(e) => {
-          setAnchor(e.currentTarget);
-          load();
-        }}
-        sx={{ color: 'text.secondary' }}
-      >
-        <MuiBadge badgeContent={unread} color="error" max={99}>
-          <Bell size={20} />
-        </MuiBadge>
-      </IconButton>
-      <Menu
-        anchorEl={anchor}
-        open={!!anchor}
-        onClose={() => setAnchor(null)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-        slotProps={{ paper: { sx: { width: 340, maxWidth: 'calc(100vw - 24px)', mt: 1 } } }}
-      >
-        <Box sx={{ px: 2, py: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            Notifications
-          </Typography>
-          {unread > 0 && (
-            <Button size="small" onClick={() => markRead()}>
-              Mark all read
-            </Button>
+    <Popover
+      label="Notifications"
+      placement="below"
+      alignment="end"
+      width={340}
+      padding={0}
+      isOpen={isOpen}
+      onOpenChange={(open) => {
+        setIsOpen(open);
+        if (open) load();
+      }}
+      content={
+        <VStack>
+          <HStack padding={3} gap={2} vAlign="center" hAlign="between">
+            <Text weight="semibold">Notifications</Text>
+            {unread > 0 && <Button label="Mark all read" size="sm" variant="ghost" onClick={() => markRead()} />}
+          </HStack>
+          {items.length === 0 ? (
+            <VStack padding={4} hAlign="center">
+              <Text color="secondary">Nothing yet.</Text>
+            </VStack>
+          ) : (
+            <List hasDividers density="compact">
+              {items.map((n) => (
+                <ListItem
+                  key={n.id}
+                  align="first-line"
+                  startContent={<Icon icon={Dot} size="md" color={n.readAt ? 'disabled' : 'accent'} />}
+                  label={<Text weight={n.readAt ? 'normal' : 'semibold'}>{n.title}</Text>}
+                  description={
+                    <VStack gap={0.5}>
+                      <Text type="supporting" color="secondary">
+                        {n.body}
+                      </Text>
+                      <Text type="supporting" color="disabled">
+                        {timeAgo(n.createdAt)}
+                      </Text>
+                    </VStack>
+                  }
+                  onClick={() => {
+                    setIsOpen(false);
+                    if (!n.readAt) markRead([n.id]);
+                    if (n.tab) onOpenTab(n.tab);
+                  }}
+                />
+              ))}
+            </List>
           )}
-        </Box>
-        <Divider />
-        {items.length === 0 ? (
-          <Typography variant="body2" color="text.secondary" sx={{ px: 2, py: 3, textAlign: 'center' }}>
-            Nothing yet.
-          </Typography>
-        ) : (
-          items.map((n) => (
-            <MenuItem
-              key={n.id}
-              onClick={() => {
-                setAnchor(null);
-                if (!n.readAt) markRead([n.id]);
-                if (n.tab) onOpenTab(n.tab);
-              }}
-              sx={{ alignItems: 'flex-start', gap: 1.25, whiteSpace: 'normal', py: 1.25, bgcolor: n.readAt ? undefined : TOKENS.accentTint + '66' }}
-            >
-              <Box
-                aria-hidden="true"
-                sx={{ mt: 0.75, width: 8, height: 8, borderRadius: 4, flexShrink: 0, bgcolor: n.readAt ? 'transparent' : 'primary.main' }}
-              />
-              <Box sx={{ minWidth: 0 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {n.title}
-                </Typography>
-                <Typography variant="caption" color="text.secondary" component="p">
-                  {n.body}
-                </Typography>
-                <Typography variant="caption" color="text.disabled">
-                  {timeAgo(n.createdAt)}
-                </Typography>
-              </Box>
-            </MenuItem>
-          ))
-        )}
-      </Menu>
-    </>
+        </VStack>
+      }
+    >
+      <Button
+        label={unread ? `Notifications, ${unread} unread` : 'Notifications'}
+        variant="ghost"
+        icon={<Icon icon={Bell} />}
+        isIconOnly={!unread}
+        endContent={unread ? <Badge variant="error" label={unread > 99 ? '99+' : String(unread)} /> : undefined}
+      >
+        {unread ? '' : undefined}
+      </Button>
+    </Popover>
   );
 }
