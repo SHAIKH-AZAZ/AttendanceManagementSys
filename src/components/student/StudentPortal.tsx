@@ -1,24 +1,17 @@
 'use client';
 
-import Table from '@mui/material/Table';
-import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
-import TableContainer from '@mui/material/TableContainer';
-import TableHead from '@mui/material/TableHead';
-import TableRow from '@mui/material/TableRow';
 import TextField from '@mui/material/TextField';
 import MuiButton from '@mui/material/Button';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { StudentMarksTab } from './MarksTab';
 import { StudentAssignmentsTab } from './AssignmentsTab';
 import { StudentFeesTab } from './FeesTab';
+import { LectureHistory, type HistoryFilter } from './LectureHistory';
 import { ScheduleTab } from '@/components/schedule/ScheduleTab';
 import type { PortalProps } from '@/lib/navigation';
 import type { AttendanceStatus, LeaveApplication, LeaveType } from '@/types';
 import {
-  ATTENDANCE_ORDER,
-  ATTENDANCE_STATUS,
   Badge,
   Button,
   Card,
@@ -31,13 +24,11 @@ import {
   PageHeader,
   ProgressBar,
   StatCard,
-  StatusBadge,
   formatDate,
-  lectureName,
   SelectField,
   DateInput,
 } from '@/components/ui';
-import { BookOpen, CalendarPlus, FileText, History, Paperclip, Send } from 'lucide-react';
+import { BookOpen, CalendarPlus, FileText, Paperclip, Send } from 'lucide-react';
 
 interface Summary {
   /** All counts are in timetable periods (a 2-period lab adds 2). */
@@ -93,7 +84,7 @@ export const StudentPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab }
   const [submitting, setSubmitting] = useState(false);
 
   const [historyCourse, setHistoryCourse] = useState('ALL');
-  const [historyStatus, setHistoryStatus] = useState<AttendanceStatus | 'ALL'>('ALL');
+  const [historyFilter, setHistoryFilter] = useState<HistoryFilter>('ALL');
 
   const load = useCallback(async () => {
     const res = await fetch('/api/student/summary');
@@ -148,16 +139,6 @@ export const StudentPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab }
       setSubmitting(false);
     }
   };
-
-  const history = useMemo(
-    () =>
-      (data?.history ?? []).filter(
-        (h) =>
-          (historyCourse === 'ALL' || h.courseCode === historyCourse) &&
-          (historyStatus === 'ALL' || h.status === historyStatus)
-      ),
-    [data, historyCourse, historyStatus]
-  );
 
   if (!data) {
     return <Card><p className="text-sm text-slate-500">Loading your attendance…</p></Card>;
@@ -225,7 +206,7 @@ export const StudentPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab }
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard label="Periods held" value={data.totalPeriods} />
             <StatCard label="Periods present" value={data.presentCount} tone="good" />
-            <StatCard label="Periods absent" value={data.absentCount} tone={data.absentCount ? 'bad' : 'neutral'} onClick={() => { setHistoryStatus('ABSENT'); setActiveTab('student-history'); }} />
+            <StatCard label="Periods absent" value={data.absentCount} tone={data.absentCount ? 'bad' : 'neutral'} onClick={() => { setHistoryFilter('MISSED'); setActiveTab('student-history'); }} />
             <StatCard
               label="Leave requests"
               value={pending}
@@ -269,54 +250,17 @@ export const StudentPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab }
       {activeTab === 'student-history' && (
         <>
           <PageHeader title="Lecture history" description="Every submitted lecture and how you were marked." />
-          <Card padded={false}>
-            <div className="p-4 flex flex-wrap gap-3 border-b border-slate-200">
-              <SelectField
-                ariaLabel="Course"
-                value={historyCourse}
-                onChange={setHistoryCourse}
-                minWidth={220}
-                options={[{ value: 'ALL', label: 'All courses' }, ...data.courses.map((c) => ({ value: c.code, label: `${c.code} · ${c.title}` }))]}
-              />
-              <SelectField<AttendanceStatus | 'ALL'>
-                ariaLabel="Status"
-                value={historyStatus}
-                onChange={setHistoryStatus}
-                minWidth={180}
-                options={[{ value: 'ALL', label: 'All statuses' }, ...ATTENDANCE_ORDER.map((k) => ({ value: k, label: ATTENDANCE_STATUS[k].label }))]}
-              />
-            </div>
-            {history.length === 0 ? (
-              <EmptyState icon={History} title="Nothing to show" description="No lectures match these filters." />
-            ) : (
-              <TableContainer>
-                <Table size="small" sx={{ minWidth: 720 }}>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Date</TableCell>
-                      <TableCell>Course</TableCell>
-                      <TableCell>Lecture</TableCell>
-                      <TableCell align="center">Periods</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Remark</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {history.map((h) => (
-                      <TableRow key={h.sessionId} className={h.status === 'ABSENT' ? 'bg-rose-50/40' : ''}>
-                        <TableCell className="text-slate-600 whitespace-nowrap">{formatDate(h.lectureDate)}</TableCell>
-                        <TableCell className="text-slate-600 whitespace-nowrap">{h.courseCode}{h.isLab && ' · Lab'}</TableCell>
-                        <TableCell className="font-semibold text-slate-800">{lectureName(h)}</TableCell>
-                        <TableCell align="center" className="text-slate-600">{h.periods}</TableCell>
-                        <TableCell><StatusBadge status={h.status} /></TableCell>
-                        <TableCell className="text-slate-500">{h.remarks || '—'}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
-          </Card>
+          <LectureHistory
+            history={data.history}
+            courses={data.courses}
+            overallPercentage={data.overallPercentage}
+            overallAttended={attended}
+            overallTotal={data.totalPeriods}
+            course={historyCourse}
+            onCourse={setHistoryCourse}
+            filter={historyFilter}
+            onFilter={setHistoryFilter}
+          />
         </>
       )}
 
