@@ -8,11 +8,11 @@ import { StudentMarksTab } from './MarksTab';
 import { StudentAssignmentsTab } from './AssignmentsTab';
 import { StudentFeesTab } from './FeesTab';
 import { LectureHistory, type HistoryFilter } from './LectureHistory';
+import { StudentOverview } from './StudentOverview';
 import { ScheduleTab } from '@/components/schedule/ScheduleTab';
 import type { PortalProps } from '@/lib/navigation';
 import type { AttendanceStatus, LeaveApplication, LeaveType } from '@/types';
 import {
-  Badge,
   Button,
   Card,
   EmptyState,
@@ -22,13 +22,11 @@ import {
   Notice,
   useTabNotice,
   PageHeader,
-  ProgressBar,
-  StatCard,
   formatDate,
   SelectField,
   DateInput,
 } from '@/components/ui';
-import { BookOpen, CalendarPlus, FileText, Paperclip, Send } from 'lucide-react';
+import { CalendarPlus, FileText, Paperclip, Send } from 'lucide-react';
 
 interface Summary {
   /** All counts are in timetable periods (a 2-period lab adds 2). */
@@ -60,10 +58,6 @@ interface Summary {
     remarks?: string;
   }[];
 }
-
-/** Periods in a row needed to get back to 75%: (a + x) / (t + x) >= 0.75. */
-const neededFor75 = (attended: number, total: number) =>
-  Math.max(0, Math.ceil((0.75 * total - attended) / 0.25));
 
 const today = () => new Date().toLocaleDateString('en-CA');
 
@@ -145,7 +139,6 @@ export const StudentPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab }
   }
 
   const attended = data.presentCount + data.lateCount + data.excusedCount;
-  const need = neededFor75(attended, data.totalPeriods);
   const pending = leaves.filter((l) => l.status === 'PENDING').length;
 
   return (
@@ -169,80 +162,20 @@ export const StudentPortal: React.FC<PortalProps> = ({ activeTab, setActiveTab }
             }
           />
 
-          {/* Standing */}
-          <Card className="mb-5">
-            {data.totalPeriods === 0 ? (
-              <EmptyState icon={BookOpen} title="No attendance yet" description="Your percentage appears after your first lecture is submitted by faculty." />
-            ) : (
-              <div className="grid lg:grid-cols-[1fr_1.4fr] gap-6 items-center">
-                <div>
-                  <div className="text-sm font-medium text-slate-500">Overall attendance</div>
-                  <div className={`mt-1 text-5xl font-bold tracking-[-0.03em] ${data.isCompliant ? 'text-emerald-700' : 'text-rose-600'}`}>
-                    {data.overallPercentage}%
-                  </div>
-                  <div className="mt-4">
-                    <ProgressBar value={data.overallPercentage} />
-                    <div className="mt-1.5 flex justify-between text-2xs text-slate-500">
-                      <span>0%</span>
-                      <span>75% required</span>
-                      <span>100%</span>
-                    </div>
-                  </div>
-                </div>
-                {data.isCompliant ? (
-                  <Notice tone="success">
-                    You meet the 75% requirement. {attended} of {data.totalPeriods} periods count as attended.
-                  </Notice>
-                ) : (
-                  <Notice tone="error">
-                    <strong>You are below 75%.</strong> Attend the next <strong>{need} periods in a row</strong> to get back
-                    above the line. If you missed lectures for a valid reason, apply for leave with proof.
-                  </Notice>
-                )}
-              </div>
-            )}
-          </Card>
-
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="Periods held" value={data.totalPeriods} />
-            <StatCard label="Periods present" value={data.presentCount} tone="good" />
-            <StatCard label="Periods absent" value={data.absentCount} tone={data.absentCount ? 'bad' : 'neutral'} onClick={() => { setHistoryFilter('MISSED'); setActiveTab('student-history'); }} />
-            <StatCard
-              label="Leave requests"
-              value={pending}
-              hint={pending ? 'Waiting for HOD' : 'None pending'}
-              tone={pending ? 'warn' : 'neutral'}
-              onClick={() => setActiveTab('student-leaves')}
-            />
-          </div>
-
-          <h2 className="mt-8 mb-3 text-base font-semibold text-slate-800">By course</h2>
-          {data.courses.length === 0 ? (
-            <Card><EmptyState icon={BookOpen} title="No courses with attendance yet" /></Card>
-          ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {data.courses.map((c) => (
-                <Card key={c.courseId}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <Badge tone="accent">{c.code}</Badge>
-                      <h3 className="mt-2 font-semibold text-slate-800">{c.title}</h3>
-                    </div>
-                    <div className={`text-2xl font-bold ${c.isDefaulter ? 'text-rose-600' : 'text-emerald-700'}`}>{c.percentage}%</div>
-                  </div>
-                  <div className="mt-4">
-                    <ProgressBar value={c.percentage} />
-                  </div>
-                  <p className="mt-3 text-xs text-slate-500">
-                    {c.attended} of {c.total} periods attended
-                    {c.isDefaulter && (
-                      <span className="text-rose-600 font-semibold"> · needs {neededFor75(c.attended, c.total)} periods in a row</span>
-                    )}
-                  </p>
-                </Card>
-              ))}
-            </div>
-          )}
+          <StudentOverview
+            totalPeriods={data.totalPeriods}
+            attended={attended}
+            presentCount={data.presentCount}
+            absentCount={data.absentCount}
+            percentage={data.overallPercentage}
+            isCompliant={data.isCompliant}
+            courses={data.courses}
+            history={data.history}
+            pendingLeaves={pending}
+            onApply={openApply}
+            onViewMissed={() => { setHistoryFilter('MISSED'); setActiveTab('student-history'); }}
+            onViewLeaves={() => setActiveTab('student-leaves')}
+          />
         </>
       )}
 
